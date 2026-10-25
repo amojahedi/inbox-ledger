@@ -193,3 +193,17 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
     events = sorted((e for e in events if e[0] <= local_now), key=lambda e: e[0])
     return [RawMessage(id=f"demo-{n}", date=_iso(local), sender=sender, subject=subject, body=body)
             for n, (local, sender, subject, body) in enumerate(events, 1)]
+
+
+DEMO_BUDGETS = {"dining": 900, "groceries": 800, "shopping": 600, "taxi": 400, "transport": 300,
+                "subscriptions": 200, "housing": 3500}
+
+
+def seed(store, months: int = 6, seed: int = 7) -> int:
+    """Fill an empty ledger with the demo: synthetic emails plus a few budgets. Returns emails added."""
+    n = store.add_messages(generate(months=months, seed=seed))
+    for category, limit in DEMO_BUDGETS.items():
+        if category in store.categories.by_key:
+            store.set_budget(category, limit)
+    store.rebuild()
+    return n

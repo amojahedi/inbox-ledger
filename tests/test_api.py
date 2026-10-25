@@ -28,7 +28,7 @@ def current(client) -> str:
 
 def test_meta(client):
     meta = client.get("/api/meta").json()
-    assert meta["currency"] == "AED" and meta["banks"] == ["Mashreq"]
+    assert meta["currency"] == "AED" and {"Mashreq", "Emirates NBD"} <= set(meta["banks"])
     assert len(meta["months"]) == 3
     assert meta["current"] == meta["months"][-1]["month"]
     keys = {c["key"] for c in meta["categories"]}

@@ -21,6 +21,7 @@ from .logos import MEDIA, Brands, fetch_icon
 from .parsing import load_banks
 from .paylater import load_providers
 from .store import Categories, Store
+from .sync import run_sync as _run_sync
 
 WEB = Path(__file__).parent / "web"
 DIRECTIONS = {"out", "in", "internal"}
@@ -251,23 +252,16 @@ def patch_settings(body: dict):
 
 # ---- demo area ----------------------------------------------------------------
 
-DEMO_BUDGETS = {"dining": 900, "groceries": 800, "shopping": 600, "taxi": 400, "transport": 300,
-                "subscriptions": 200, "housing": 3500}
-
 
 @app.post("/api/demo")
 def enter_demo():
     """Open the demo: synthetic data in <data dir>/demo/, never mixed with your own."""
-    from .demo import generate
+    from .demo import seed
     with _demo_lock:
         st = _open_demo()
         if not st.source()["emails"]:
             (demo_dir() / "DEMO").write_text("Synthetic data for Ledger's demo. Safe to delete.\n")
-            st.add_messages(generate(months=6))
-            for category, limit in DEMO_BUDGETS.items():
-                if category in st.categories.by_key:
-                    st.set_budget(category, limit)
-            st.rebuild()
+            seed(st)
         settings.save(data_dir(), {"mode": "demo"})
     return {"mode": "demo", **st.source()}
 
@@ -331,27 +325,6 @@ _sync: dict = {"state": "idle"}  # idle | running | done | error
 _sync_lock = threading.Lock()
 
 
-def run_sync(st: Store, full: bool = False, limit: int = 2000, only: Optional[list[str]] = None,
-             progress=lambda **kw: None) -> dict:
-    """Fetch new bank emails from Gmail into `st` — the same steps as `inbox_ledger sync`.
-
-    The first run opens Google's consent page in your browser (read-only access)."""
-    from .sources import Gmail
-    d = data_dir()
-    if not (d / "token.json").is_file():
-        progress(step="authorizing", message="Waiting for you to allow read-only access in your browser…")
-    gmail = Gmail(d / "credentials.json", d / "token.json")
-    after = None if full else st.latest_message_date()
-    fetched, total = {}, 0
-    for bank in [*st.banks, *st.providers]:
-        if not bank.gmail_query or (only and bank in st.banks and bank.name not in only):
-            continue
-        progress(step="fetching", message=f"Reading {bank.name} emails…", bank=bank.name)
-        msgs = list(gmail.fetch(bank.gmail_query, after=after, limit=limit))
-        fetched[bank.name] = len(msgs)
-        total += st.add_messages(msgs)
-    progress(step="organizing", message="Organizing transactions…")
-    return {"fetched": fetched, "added": total, **st.rebuild()}
 
 
 def _sync_worker(full: bool) -> None:
@@ -360,7 +333,7 @@ def _sync_worker(full: bool) -> None:
     try:
         st = open_store()  # its own connection: this runs on a background thread
         try:
-            result = run_sync(st, full=full, only=prefs()["banks"] or None, progress=progress)
+            result = _run_sync(st, data_dir(), full=full, only=prefs()["banks"] or None, progress=progress)
         finally:
             st.db.close()
         _sync.update(state="done", step="done", result=result, finished=datetime.now().isoformat(timespec="seconds"),

@@ -140,7 +140,8 @@ def test_first_run_meta(app):
     meta = client.get("/api/meta").json()
     assert meta["months"] == [] and meta["source"]["emails"] == 0 and meta["mode"] == "real"
     assert meta["settings"]["onboarded"] is False
-    assert meta["bank_profiles"][0]["name"] == "Mashreq"
+    names = [b["name"] for b in meta["bank_profiles"]]
+    assert {"Mashreq", "Emirates NBD", "ADCB"} <= set(names)
 
 
 # ---- import ----------------------------------------------------------------------
@@ -223,13 +224,13 @@ def test_sync_runs_in_background(app, monkeypatch):
     (d / "credentials.json").write_text("{}")
     seen = {}
 
-    def fake_sync(st, full=False, limit=2000, only=None, progress=lambda **kw: None):
+    def fake_sync(st, data=None, full=False, limit=2000, only=None, progress=lambda **kw: None):
         progress(step="fetching", message="Reading Mashreq emails…")
         added = st.add_messages(demo.generate(months=1, seed=2)[:12])
         seen["only"] = only
         return {"fetched": {"Mashreq": 12}, "added": added, **st.rebuild()}
 
-    monkeypatch.setattr(api, "run_sync", fake_sync)
+    monkeypatch.setattr(api, "_run_sync", fake_sync)
     client.patch("/api/settings", json={"banks": ["Mashreq"]})
     assert client.post("/api/sync").json()["state"] == "running"
     for _ in range(100):
@@ -250,7 +251,7 @@ def test_sync_reports_errors(app, monkeypatch):
     def boom(*a, **kw):
         raise RuntimeError("access_denied")
 
-    monkeypatch.setattr(api, "run_sync", boom)
+    monkeypatch.setattr(api, "_run_sync", boom)
     client.post("/api/sync")
     for _ in range(100):
         s = client.get("/api/sync").json()
@@ -300,3 +301,11 @@ def test_transactions_carry_brand(app):
     month = client.get("/api/meta").json()["current"]
     s = client.get("/api/summary", params={"month": month}).json()
     assert all("brand" in m for m in s["top_merchants"])
+
+
+def test_logo_fetcher_refuses_private_and_plain_http_hosts():
+    import pytest
+    from inbox_ledger.logos import _check_public
+    for url in ("http://example.com/favicon.ico", "https://127.0.0.1/x", "https://localhost/x", "https://[::1]/x"):
+        with pytest.raises(ValueError):
+            _check_public(url)

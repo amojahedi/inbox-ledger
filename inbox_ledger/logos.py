@@ -8,7 +8,9 @@ cached on disk, including failures, so each brand is fetched at most once.
 """
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import struct
 import threading
 import time
@@ -115,12 +117,32 @@ class _IconLinks(HTMLParser):
         self.links.append((score, href))
 
 
-def _get(url: str, limit: int, timeout: float = TIMEOUT) -> tuple[bytes, str]:
+def _check_public(url: str) -> None:
+    """Only https URLs on named hosts that resolve to public addresses: a brand page must not be able
+    to point the fetcher at this machine or the local network (directly or through a redirect)."""
     parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname or re.fullmatch(r"[\d.:\[\]]+", parsed.hostname):
+    host = parsed.hostname
+    if parsed.scheme != "https" or not host or re.fullmatch(r"[\d.:\[\]]+", host):
         raise ValueError("only https URLs on named hosts")
+    for info in socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP):
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            raise ValueError(f"{host} resolves to a non-public address")
+
+
+class _PublicRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _check_public(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_PublicRedirects)
+
+
+def _get(url: str, limit: int, timeout: float = TIMEOUT) -> tuple[bytes, str]:
+    _check_public(url)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=max(0.5, timeout)) as res:  # follows redirects
+    with _opener.open(req, timeout=max(0.5, timeout)) as res:  # each redirect hop is checked too
         if urlparse(res.geturl()).scheme != "https":
             raise ValueError("redirected away from https")
         data = res.read(limit + 1)
