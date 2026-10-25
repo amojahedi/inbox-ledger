@@ -84,6 +84,34 @@ Then run `python -m inbox_ledger rebuild`. Raw emails are stored, so improving a
 
 Categories, keywords and FX rates live in [`categories.yaml`](inbox_ledger/defaults/categories.yaml). You can override them with `data/categories.yaml`.
 
+## Bring your own Claude (optional)
+
+If your bank is not supported yet, Claude can help. This is **off by default** and always uses **your own** Anthropic API key and account: nobody else pays for it, and nothing is sent anywhere until you opt in.
+
+- **`ai-read`** reads alert emails that no bank profile understood and turns them into transactions (marked as AI-read, with a confidence).
+- **`ai-profile`** drafts a bank YAML profile from up to 5 of your stored emails, checks locally that it parses them, and saves it to `data/banks/`.
+
+Set it up:
+
+```bash
+pip install -r requirements-ai.txt
+export ANTHROPIC_API_KEY=sk-ant-...                 # your key, read from the environment, never stored
+echo '{"enabled": true}' > data/ai.json              # the opt-in
+python -m inbox_ledger ai-read --dry-run             # shows exactly what would be sent, sends nothing
+python -m inbox_ledger ai-read                       # asks for confirmation (or pass --yes)
+python -m inbox_ledger ai-profile --bank "My Bank" --from alerts@mybank.com
+```
+
+AI is on only when both the key and `data/ai.json` exist. Delete either to switch it off. `sync` and `rebuild` never contact Anthropic.
+
+**What is sent.** Only emails your profiles could not parse and that look like bank alerts (an amount plus words like debited or purchase). For each: the subject and the first ~1200 characters of the body, with links and email addresses removed, long numbers masked down to their last 4 digits, and footers cut. No sender, no other mail. `ai-profile` additionally sends the sender address and up to 2500 characters of each of up to 5 sample emails. Every command prints this before it does anything and needs `--yes` or an interactive "y". Data goes to Anthropic's API under your account and their terms.
+
+**Cached, once per email.** Answers are stored in `data/ledger.db` (`ai_transactions`), so an email is sent at most once, and `rebuild` uses the cache offline. Re-reading is never needed unless you delete the table.
+
+**Cost.** It uses the cheapest current Haiku (`claude-haiku-5-5`, change with `LEDGER_AI_MODEL`). Emails are batched 10 per request at about 150 tokens each, so a thousand emails is roughly 150k input tokens, about two cents at Haiku prices; the command prints an estimate first and the real token usage after.
+
+**No API key?** Use Claude Code in this repo: the [`add-bank` skill](.claude/skills/add-bank/SKILL.md) walks it through writing your bank's profile from 2 or 3 redacted sample emails, rebuilding, and checking nothing is left unparsed.
+
 ## Privacy
 
 - Gmail access is **read-only** (`gmail.readonly`), and only your bank's sender addresses are queried.

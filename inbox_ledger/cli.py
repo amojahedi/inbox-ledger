@@ -1,8 +1,11 @@
 """Command line: `python -m inbox_ledger <command>`."""
 import argparse
 import os
+import re
+import sys
 from pathlib import Path
 
+from . import ai
 from .config import data_dir, open_store
 from .sources import Gmail, read_jsonl, read_mbox
 
@@ -46,6 +49,97 @@ def cmd_demo(args):
     print(f"demo: {n} synthetic emails · {store.rebuild()}")
 
 
+def _confirm(notice: str, yes: bool) -> None:
+    """Print exactly what would leave this machine; continue only on --yes or an interactive "y"."""
+    print(notice)
+    if yes:
+        return
+    if not sys.stdin.isatty() or input("Send this to Anthropic with your API key? [y/N] ").strip().lower() not in ("y", "yes"):
+        sys.exit("Nothing was sent. Re-run with --yes to confirm.")
+
+
+def _require_ai() -> None:
+    if not ai.enabled():
+        s = ai.status()
+        sys.exit("AI is off. It needs your own key and an explicit opt-in:\n"
+                 f"  ANTHROPIC_API_KEY set: {'yes' if s['has_key'] else 'NO'}\n"
+                 f"  {data_dir() / 'ai.json'} containing {{\"enabled\": true}}: {'yes' if s['opted_in'] else 'NO'}")
+
+
+def _usage_line(u: "ai.Usage") -> str:
+    cost = u.cost()
+    return (f"{u.requests} requests · {u.input_tokens:,} input / {u.output_tokens:,} output tokens"
+            + (f" (about ${cost:.4f} on your account)" if cost is not None else ""))
+
+
+def cmd_ai_read(args):
+    _require_ai()
+    store = open_store()
+    todo = ai.candidates(store, args.limit)
+    if not todo:
+        return print("Nothing to send: no unparsed alert-like emails that Claude has not already seen.")
+    est = ai.estimate(todo)
+    if args.dry_run:
+        for alias, text in ai.render(todo):
+            print(f"--- {alias}\n{text}")
+        return print(f"\nDry run: {est['emails']} emails would be sent. Nothing was sent.")
+    _confirm(f"{est['emails']} emails that no bank profile understood (and look like alerts) will be sent to "
+             f"Anthropic's API ({ai.model()}) using YOUR key, in {est['requests']} requests.\n"
+             "Per email: the subject and the first ~1200 characters of the body, with links and addresses removed, "
+             "long numbers masked and footers cut. No sender, no other mail. Each email is sent only once; "
+             "answers are cached locally.\n"
+             f"Estimated: ~{est['input_tokens']:,} input and ~{est['output_tokens']:,} output tokens. "
+             "Use --dry-run to see the exact text.", args.yes)
+    usage = ai.Usage()
+    try:
+        results = ai.extract(todo, usage=usage)
+    except ai.AIError as e:
+        sys.exit(f"ai-read failed: {e}")
+    store.ai_put(results)
+    found = sum(1 for r in results.values() if r["is_transaction"])
+    print(f"{len(results)} emails read: {found} transactions, {len(results) - found} not transactions"
+          + (f", {usage.failed} failed (will be retried next run)" if usage.failed else ""))
+    print(_usage_line(usage))
+    print(store.rebuild())
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "bank"
+
+
+def cmd_ai_profile(args):
+    _require_ai()
+    store = open_store()
+    samples = ai.find_samples(store, args.sender, 5)
+    if not samples:
+        sys.exit(f"No stored alert-like emails match {args.sender!r} (sender or subject). "
+                 "Sync or import some first.")
+    out = Path(args.out) if args.out else data_dir() / "banks" / f"{_slug(args.bank)}.yaml"
+    if out.exists() and not args.force:
+        sys.exit(f"{out} already exists. Choose another --out or pass --force.")
+    if args.dry_run:
+        for i, m in enumerate(samples, 1):
+            print(f"--- sample {i}\nSender: {m.sender}\nSubject: {m.subject}\nBody: {ai.trim_body(m.body, 2500)}")
+        return print(f"\nDry run: {len(samples)} emails would be sent. Nothing was sent.")
+    _confirm(f"{len(samples)} sample emails matching {args.sender!r} will be sent to Anthropic's API ({ai.model()}) "
+             "using YOUR key, to draft a bank profile.\n"
+             "Per email: the sender address, subject and the first ~2500 characters of the body, with links and "
+             "addresses removed and long numbers masked. Nothing else is sent. The draft is checked locally "
+             f"against these samples before it is saved to {out}. Use --dry-run to see the exact text.", args.yes)
+    usage = ai.Usage()
+    try:
+        text = ai.draft_profile(samples, args.bank, usage=usage)
+    except ai.AIError as e:
+        print(_usage_line(usage))
+        if e.draft:
+            print("Last draft (NOT saved):\n" + e.draft)
+        sys.exit(f"ai-profile failed: {e}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
+    print(f"Saved {out} (parses all {len(samples)} samples). {_usage_line(usage)}")
+    print("Review it, then:", open_store().rebuild())
+
+
 def cmd_serve(args):
     import uvicorn
     print(f"Inbox Ledger → http://{args.host}:{args.port}")
@@ -72,6 +166,21 @@ def main():
     s.add_argument("--months", type=int, default=6)
     s.add_argument("--seed", type=int, default=7)
     s.set_defaults(func=cmd_demo)
+
+    s = sub.add_parser("ai-read", help="optional: have Claude (your own API key) read unparsed alert emails")
+    s.add_argument("--yes", action="store_true", help="confirm sending without asking")
+    s.add_argument("--dry-run", action="store_true", help="show exactly what would be sent, send nothing")
+    s.add_argument("--limit", type=int, default=100, help="max emails per run (newest first)")
+    s.set_defaults(func=cmd_ai_read)
+
+    s = sub.add_parser("ai-profile", help="optional: have Claude draft a bank profile from sample emails")
+    s.add_argument("--bank", required=True, help='bank name, e.g. "My Bank"')
+    s.add_argument("--from", dest="sender", required=True, help="sender address or subject text to pick samples")
+    s.add_argument("--out", help="where to save (default data/banks/<bank>.yaml)")
+    s.add_argument("--force", action="store_true", help="overwrite an existing file")
+    s.add_argument("--yes", action="store_true", help="confirm sending without asking")
+    s.add_argument("--dry-run", action="store_true", help="show exactly what would be sent, send nothing")
+    s.set_defaults(func=cmd_ai_profile)
 
     s = sub.add_parser("serve", help="open the dashboard")
     s.add_argument("--host", default="127.0.0.1")

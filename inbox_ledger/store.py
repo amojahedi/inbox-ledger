@@ -15,7 +15,7 @@ from typing import Iterable, Optional
 
 import yaml
 
-from . import paylater
+from . import ai, paylater
 from .parsing import BankProfile, RawMessage, Transaction, find_mirrors, parse_message
 
 SCHEMA = """
@@ -47,6 +47,10 @@ CREATE TABLE IF NOT EXISTS paylater_events (
 );
 CREATE TABLE IF NOT EXISTS budgets (
   category TEXT PRIMARY KEY, monthly REAL
+);
+-- Optional "Bring your own Claude": one answer per email, so each email is sent at most once.
+CREATE TABLE IF NOT EXISTS ai_transactions (
+  message_id TEXT PRIMARY KEY, json TEXT
 );
 """
 
@@ -132,6 +136,14 @@ class Store:
         n, first, last = self.db.execute("SELECT count(*), min(date), max(date) FROM raw_messages").fetchone()
         return {"emails": n, "first": first, "last": last}
 
+    def ai_cached(self) -> dict[str, dict]:
+        return {r["message_id"]: json.loads(r["json"]) for r in self.db.execute("SELECT * FROM ai_transactions")}
+
+    def ai_put(self, results: dict[str, dict]) -> None:
+        with self.db:
+            self.db.executemany("INSERT OR REPLACE INTO ai_transactions VALUES (?,?)",
+                                [(k, json.dumps(v)) for k, v in results.items()])
+
     def latest_message_date(self) -> Optional[str]:
         row = self.db.execute("SELECT max(date) FROM raw_messages").fetchone()
         return row[0]
@@ -143,6 +155,11 @@ class Store:
         events = [e for e in (paylater.parse_event(m, self.providers) for m in pl_msgs) if e]
         pl_ids = {m.id for m in pl_msgs}
         txns = [t for t in (parse_message(m, self.banks) for m in msgs if m.id not in pl_ids) if t]
+        cached = self.ai_cached()  # offline: Claude's earlier answers, never a network call
+        if cached:
+            seen = {t.message_id for t in txns}
+            tz = self.banks[0].timezone if self.banks else None
+            txns += ai.transactions_from_cache((m for m in msgs if m.id not in pl_ids and m.id not in seen), cached, tz)
         parsed = len(txns) + len(events)  # emails understood; a split charge later yields several rows
         pairs = paylater.attach(txns, events, self.providers, {b.name: b.timezone for b in self.banks})
         mirrors = find_mirrors(txns, self.banks)
@@ -177,6 +194,8 @@ class Store:
                   e.refunded, e.instalments, e.next_due, int(e.full_refund), pairs.get(e.message_id)) for e in events])
         out = {"messages": len(msgs), "transactions": len(txns), "mirrors": len(mirrors),
                "unparsed": len(msgs) - parsed}
+        if any(t.pattern == "ai" for t in txns):
+            out["ai"] = sum(t.pattern == "ai" for t in txns)
         if self.providers:
             out["paylater"] = {"emails": len(events), "matched": len(pairs)}
         return out
