@@ -1,0 +1,61 @@
+# Mashreq Bank (UAE) — NEO accounts and debit cards.
+#
+# Each pattern is tried in order against the email body; the first match wins.
+# Named groups the engine understands:
+#   amount, currency, last4, merchant, counterparty, when, transfer_type, status
+# `kind` is one of: card_purchase, account_debit, account_credit, transfer
+# `direction` is out | in | internal. Transfers may set it per transfer_type.
+
+name: Mashreq
+gmail_query: 'from:(MashreqAlerts@mashreq.com OR MashreqDigital@mashreq.com) (subject:Transaction OR subject:"Transfer request")'
+senders: ['mashreq\.com$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: card_purchase
+    kind: card_purchase
+    direction: out
+    regex: 'Card ending with (?P<last4>\d{4}) was used for a purchase of (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) at (?P<merchant>.+?) on (?P<when>\d{2}-[A-Z]{3}-\d{4} \d{2}:\d{2} [AP]M)'
+    when_format: '%d-%b-%Y %I:%M %p'
+
+  - name: card_refund
+    kind: card_purchase
+    direction: in
+    regex: 'Card ending with (?P<last4>\d{4}).{0,40}?(?:refund|reversal|credited).{0,40}?(?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2})(?: (?:at|from) (?P<merchant>.+?))?(?: on |\.|$)'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    regex: 'Amount of (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) has been debited from your Mashreq account no\. X*(?P<last4>\d{4}) for (?P<merchant>.+?)\. Login'
+
+  - name: account_debit_short
+    kind: account_debit
+    direction: out
+    regex: 'Your AC No:X*(?P<last4>\d{4}) is debited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) for (?P<merchant>.+?)\. Login'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    regex: 'Amount of (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) has been credited to your Mashreq account no\. X*(?P<last4>\d{4})(?: for (?P<merchant>.+?))?\.'
+
+  - name: account_credit_short
+    kind: account_credit
+    direction: in
+    regex: 'Your AC No:X*(?P<last4>\d{4}) is credited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2})(?: for (?P<merchant>.+?))?\.'
+
+  - name: transfer
+    kind: transfer
+    direction: out
+    regex: 'Transfer type\s*(?P<transfer_type>.+?) \* From(?: [Aa]ccount)?\s*\*+(?P<last4>\d{4}) .*?(?:Beneficiary account|To [Aa]ccount)\s*(?P<counterparty>.+?)\s*\*+\d+ .*?Transfer amount\s*(?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}).*?Status\s*(?P<status>[A-Za-z]+)'
+    when_regex: 'Transaction date\s*(?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})'
+    when_format: '%Y-%m-%d %H:%M:%S'
+    transfer_directions:
+      Own Account: internal
+    failed_statuses: [Failed, Rejected, Cancelled]
+
+# An account debit that mirrors a transfer email (same account, same amount,
+# within this window) is the same money movement — keep the richer transfer.
+dedupe:
+  mirror_kinds: [account_debit]
+  primary_kind: transfer
+  window_hours: 6

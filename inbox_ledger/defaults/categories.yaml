@@ -1,0 +1,110 @@
+# Built-in categories and keyword rules. Matching is case-insensitive on the
+# normalized merchant name. First matching category wins, so put the more
+# specific ones (e.g. "careem food") above the general ones ("careem").
+#
+# Your own corrections in the app always take precedence over these.
+#
+# color: one of blue, orange, aqua, yellow, magenta, green, violet, red, gray —
+# a colour-blind-safe palette with light and dark variants defined in the UI.
+
+base_currency: AED
+
+# Rates to the base currency, used for foreign-currency card purchases.
+fx:
+  AED: 1.0
+  USD: 3.6725
+  EUR: 4.0
+  GBP: 4.7
+  SAR: 0.98
+  INR: 0.044
+
+categories:
+  - key: coffee
+    name: Coffee
+    color: violet
+    keywords: [arabica, starbucks, costa, tim hortons, caribou, coffee, cafe, brew, espresso]
+
+  - key: dining
+    name: Food & Dining
+    color: orange
+    keywords: [careem food, talabat, deliveroo, noon food, zomato, qlub, restaurant, tea house, mcdonald, kfc, burger, pizza, shawarma, bakery, kitchen, grill, eatery]
+
+  - key: groceries
+    name: Groceries
+    color: aqua
+    keywords: [carrefour, lulu, spinneys, waitrose, union coop, choithrams, kibsons, instashop, noon minutes, careem quik, talabat mart, grandiose, viva, supermarket, hypermarket, grocery, mini mart]
+
+  - key: shopping
+    name: Shopping
+    color: red
+    keywords: [careem shops, amazon, amzn mktp, noon, ikea, namshi, shein, h&m, zara, centrepoint, max fashion, marks&spencer, perfume, sharaf d g, damas, landmark retail, sharaf dg, virgin megastore, tabby, tamara, mall]
+
+  - key: subscriptions
+    name: Subscriptions
+    color: magenta
+    keywords: [audible, netflix, spotify, apple.com, itunes, google, youtube, openai, chatgpt, anthropic, claude, disney, osn, careem plus, shahid, icloud, linkedin, microsoft, adobe, notion, atlassian, figma, github, canva]
+
+  - key: housing
+    name: Housing
+    color: yellow
+    keywords: [rent, ejari, landlord, property, real estate]
+
+  - key: bills
+    name: Bills & Utilities
+    color: gray
+    keywords: [dewa, dubai electricity, addc, sewa, etisalat, du, e&, virgin mobile, internet, smart dubai, smartdxbgov, government, amer, tasheel]
+
+  - key: home
+    name: Home & Services
+    color: gray
+    keywords: [careem homesrvices, careem home, justlife, urban company, urbanclap, laundry, cleaning, maintenance]
+
+  - key: taxi
+    name: Taxi
+    color: blue
+    keywords: [careem ride, careem tip, careem hala, careem, uber, ubr, hala, yango, taxi, bolt]
+
+  - key: transport
+    name: Transport
+    color: gray
+    keywords: [rta, salik, nol, enoc, adnoc, emarat, parking, darb, metro]
+
+  - key: health
+    name: Health & Beauty
+    color: green
+    keywords: [pharmacy, aster, life pharmacy, boots, clinic, hospital, medical, dental, salon, saloon, beauty, spa, gym, fitness]
+
+  - key: entertainment
+    name: Entertainment
+    color: gray
+    keywords: [vox, reel cinemas, novo, cinema, playstation, steam, xbox, ticket]
+
+  - key: travel
+    name: Travel
+    color: gray
+    keywords: [emirates, flydubai, air arabia, etihad, booking.com, airbnb, agoda, hotel, expedia]
+
+  - key: education
+    name: Education
+    color: gray
+    keywords: [udemy, coursera, university, school, academy, course]
+
+  - key: people
+    name: Transfers to People
+    color: gray
+    keywords: [botim, ziina, western union, al ansari exchange]
+
+  - key: fees
+    name: Bank Fees
+    color: gray
+    keywords: [fee, charge, vat on]
+
+  - key: income
+    name: Income
+    color: green
+    keywords: [salary, payroll]
+
+  - key: other
+    name: Other
+    color: gray
+    keywords: []

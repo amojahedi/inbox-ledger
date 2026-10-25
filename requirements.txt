@@ -1,0 +1,5 @@
+fastapi>=0.110
+uvicorn>=0.29
+pyyaml>=6.0
+google-api-python-client>=2.120
+google-auth-oauthlib>=1.2

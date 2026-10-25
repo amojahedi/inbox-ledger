@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ledger</title>
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="brand"><img src="icon.svg" alt="" width="22" height="22"><span>Ledger</span></div>
+      <nav class="segmented" role="tablist" aria-label="Sections">
+        <button role="tab" data-view="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-view="activity">Activity</button>
+        <button role="tab" data-view="rules">Rules</button>
+      </nav>
+      <div class="month-switch">
+        <button class="icon-btn" id="prev" aria-label="Previous month">‹</button>
+        <span id="month-label"></span>
+        <button class="icon-btn" id="next" aria-label="Next month">›</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Overview -->
+    <section class="view" id="view-overview">
+      <div class="hero">
+        <p class="eyebrow" id="hero-eyebrow">Spent this month</p>
+        <h1 class="hero-number" id="hero-number">—</h1>
+        <p class="hero-sub" id="hero-sub"></p>
+        <p class="source" id="source"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Where it went</h2>
+          <button class="link" data-goto="activity">See all</button>
+        </div>
+        <div class="stackbar" id="stackbar" role="img"></div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+
+      <div class="callout" id="callout" hidden>
+        <span class="callout-dot"></span>
+        <span id="callout-text"></span>
+        <button class="link" id="callout-btn">Review</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Daily spending</h2><span class="muted" id="daily-note"></span></div>
+          <div class="chart" id="daily-chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Last six months</h2></div>
+          <div class="chart" id="trend-chart"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Budgets</h2><span class="muted">Tap a limit to edit</span></div>
+          <ul class="budgets" id="budgets"></ul>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Top merchants</h2></div>
+          <ol class="merchants" id="merchants"></ol>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>When you spend</h2><span class="muted">By hour of day</span></div>
+        <div class="chart short" id="hour-chart"></div>
+      </div>
+    </section>
+
+    <!-- Activity -->
+    <section class="view" id="view-activity" hidden>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search merchants and notes" autocomplete="off">
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="card flush">
+        <ul class="tx-list" id="tx-list"></ul>
+        <p class="empty" id="tx-empty" hidden>No transactions here.</p>
+      </div>
+    </section>
+
+    <!-- Rules -->
+    <section class="view" id="view-rules" hidden>
+      <div class="hero small">
+        <h1 class="hero-title">Things Ledger has learned</h1>
+        <p class="hero-sub">Each time you recategorize a merchant and keep “Remember” on, it becomes a rule here. Rules apply to past and future transactions.</p>
+      </div>
+      <div id="cat-section" hidden>
+        <p class="label section-label">Your categories</p>
+        <div class="card flush"><ul class="rule-list" id="cat-list"></ul></div>
+        <p class="label section-label">Merchant rules</p>
+      </div>
+      <div class="card flush">
+        <ul class="rule-list" id="rule-list"></ul>
+        <p class="empty" id="rule-empty" hidden>No rules yet. Open any transaction in Activity and pick a category.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Transaction sheet -->
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <p class="eyebrow" id="sheet-date"></p>
+        <h3 id="sheet-title"></h3>
+      </div>
+      <p class="sheet-amount" id="sheet-amount"></p>
+    </div>
+    <dl class="sheet-meta" id="sheet-meta"></dl>
+
+    <p class="label">Type</p>
+    <div class="segmented full" id="sheet-direction">
+      <button data-dir="out">Spending</button>
+      <button data-dir="in">Income</button>
+      <button data-dir="internal">My accounts</button>
+    </div>
+
+    <p class="label">Category</p>
+    <div class="cat-grid" id="sheet-cats"></div>
+    <div class="new-cat" id="new-cat" hidden>
+      <input type="text" id="new-cat-name" placeholder="Category name, e.g. Pets" maxlength="40">
+      <div class="swatches" id="new-cat-colors" role="radiogroup" aria-label="Colour"></div>
+      <button class="btn primary" id="new-cat-add" type="button">Add</button>
+    </div>
+
+    <label class="toggle-row">
+      <span><strong>Remember for <span id="sheet-merchant"></span></strong><br>
+        <small class="muted">Apply to every past and future transaction from this merchant.</small></span>
+      <input type="checkbox" id="sheet-remember" checked><span class="switch" aria-hidden="true"></span>
+    </label>
+    <label class="toggle-row sub" id="sheet-amount-row">
+      <span><strong>Only at <span id="sheet-amount-match"></span></strong><br>
+        <small class="muted">For a merchant you use for different things, like the same coffee order on a delivery app.</small></span>
+      <input type="checkbox" id="sheet-match-amount"><span class="switch" aria-hidden="true"></span>
+    </label>
+
+    <p class="label">Note</p>
+    <input type="text" id="sheet-note" placeholder="Add a note">
+
+    <div class="sheet-actions">
+      <button class="btn secondary" id="sheet-cancel">Cancel</button>
+      <button class="btn primary" id="sheet-save">Save</button>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

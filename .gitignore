@@ -1,0 +1,14 @@
+# Personal data never leaves your machine
+data/
+*.db
+*.sqlite
+credentials.json
+token.json
+.env
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+demo-data/
