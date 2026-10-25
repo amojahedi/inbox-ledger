@@ -28,10 +28,16 @@ Most budgeting apps want your bank password, or a paid aggregator that doesn't s
 - **Learns from one correction.** Tell it once that *Golden Sands* is Shopping, or that a transfer to someone is between your own accounts. That merchant is handled the same way, past and future, from then on. Every learned rule is listed and can be undone. A rule can also be tied to one exact amount, for when one app covers different things (your AED 32.50 coffee order on a food-delivery app, say).
 - **Understands pay-later.** A card charge that just says "Tabby" is paired with Tabby's own email (same amount, seconds apart) and shown as the real store, e.g. "Noon · via Tabby". Charges covering several orders are split. A Pay later card shows this month's instalments and what you still owe per order. Providers are YAML profiles too, so Tamara or Postpay can be added the same way.
 - **Your categories, not just ours.** Create a category from any transaction in two taps (name and colour), then budget and teach rules with it like a built-in one.
+- **Feels at home on any bank.** A guided first run asks which bank you use, then connects Gmail, imports a file or opens a demo. Ten UAE banks have their own profiles, and a generic reader handles common alert wording from any bank.
+- **Knows the shops.** Merchants show their brand logo (Careem, Starbucks, IKEA…) or a monogram in the brand's colour. About 120 brands are mapped in `brands.yaml`.
 - **Shows you the month.** Totals against last month, what came in and what you saved, a category breakdown, daily and hourly spending, a six-month trend, budgets per category, and top merchants. Light and dark mode, desktop and phone.
 
 <p align="center">
-  <img src="docs/screenshots/activity.png" width="49%" alt="Activity list grouped by day">
+  <img src="docs/screenshots/welcome.png" width="49%" alt="Welcome screen of the first-run setup">
+  <img src="docs/screenshots/settings.png" width="49%" alt="Settings: Gmail, import, banks, appearance and merchant logos">
+</p>
+<p align="center">
+  <img src="docs/screenshots/activity.png" width="49%" alt="Activity list grouped by day, with merchant logos">
   <img src="docs/screenshots/rules.png" width="49%" alt="Rules Ledger has learned">
 </p>
 <p align="center">
@@ -53,6 +59,8 @@ INBOX_LEDGER_DATA=demo-data python -m inbox_ledger serve
 Open http://127.0.0.1:8765. Everything in the demo is synthetic, and the dashboard labels it as example data.
 
 ## Use it with your own email
+
+The easiest way is the app itself: start `python -m inbox_ledger serve` with an empty data folder and the welcome flow walks you through choosing your bank and connecting Gmail or importing a file. The same steps from the command line:
 
 1. **Create a Google OAuth client.** This is free and takes about 3 minutes.
    In [Google Cloud Console](https://console.cloud.google.com/): create a project, enable the **Gmail API**, configure the OAuth consent screen (External, add yourself as a test user), then go to *Credentials → Create credentials → OAuth client ID → Desktop app*. Download the JSON and save it as `data/credentials.json`.
@@ -143,6 +151,8 @@ AI is on only when both the key and `data/ai.json` exist. Delete either to switc
 - Gmail access is **read-only** (`gmail.readonly`), and only your bank's sender addresses are queried.
 - Everything is stored in a local SQLite file in `data/`, which is git-ignored, as are `credentials.json` and `token.json`.
 - The server binds to `127.0.0.1`. There is no telemetry and there are no external requests from the dashboard: no CDNs, fonts or analytics.
+- *Bring your own Claude* is off unless you add your own API key **and** switch it on for your data folder; it shows what it will send and asks first.
+- Merchant logos are **off** for your own data. When you turn them on in Settings, each icon is fetched once from the brand's own website (never a third-party icon service) and cached in `data/logos/`. Fetching does tell that website someone is loading its icon, which is why it's opt-in.
 
 ## How it works
 
