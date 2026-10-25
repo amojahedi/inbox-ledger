@@ -409,7 +409,7 @@ function openSheet(t, from) {
   ($(`#sheet-cats [data-cat="${t.category}"]`) || $("#sheet-cats button"))?.focus({ preventScroll: true });
 }
 
-const COLORS = ["blue", "orange", "aqua", "yellow", "magenta", "green", "violet", "red", "gray"];
+const COLORS = ["blue", "orange", "aqua", "yellow", "magenta", "green", "violet", "red", "brown", "teal", "cyan", "navy", "plum", "olive", "slate", "forest", "tan", "gray"];
 
 function renderSheetCats() {
   $("#sheet-cats").innerHTML = state.meta.categories.map((c) =>

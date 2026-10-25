@@ -32,6 +32,9 @@
   --c-violet: #6250d6;
   --c-red: #e34948;
   --c-gray: #aeaeb2;
+  /* Extra hues so every category has its own colour; told apart by lightness as well as hue.
+     Beyond 8 colours, identity also rests on the label shown next to every swatch. */
+  --c-brown: #785130; --c-teal: #1c8580; --c-cyan: #47c5d2; --c-navy: #223b6c; --c-plum: #812e63; --c-olive: #94ab39; --c-slate: #8794a1; --c-forest: #1b552c; --c-tan: #af9279;
 
   --radius: 22px;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif;
@@ -66,6 +69,7 @@
     --c-violet: #9085e9;
     --c-red: #e66767;
     --c-gray: #636366;
+    --c-brown: #966e4c; --c-teal: #44a49e; --c-cyan: #4fccd9; --c-navy: #3c578a; --c-plum: #a24c80; --c-olive: #9ab140; --c-slate: #8d9aa8; --c-forest: #397247; --c-tan: #c2a48b;
   }
 }
 :root[data-theme="dark"] {
@@ -77,6 +81,7 @@
   --nav: rgba(22, 22, 23, 0.72); --shadow: none; --bar: #f5f5f7; --bar-muted: #3a3a3c;
   --c-blue: #3987e5; --c-orange: #d95926; --c-aqua: #199e70; --c-yellow: #c98500;
   --c-magenta: #d55181; --c-green: #008300; --c-violet: #9085e9; --c-red: #e66767; --c-gray: #636366;
+  --c-brown: #966e4c; --c-teal: #44a49e; --c-cyan: #4fccd9; --c-navy: #3c578a; --c-plum: #a24c80; --c-olive: #9ab140; --c-slate: #8d9aa8; --c-forest: #397247; --c-tan: #c2a48b;
 }
 
 * { box-sizing: border-box; }

@@ -4,7 +4,8 @@
 #
 # Your own corrections in the app always take precedence over these.
 #
-# color: one of blue, orange, aqua, yellow, magenta, green, violet, red, gray —
+# color: one of blue, orange, aqua, yellow, magenta, green, violet, red, brown, teal, cyan, navy,
+# plum, olive, slate, forest, tan, gray —
 # a colour-blind-safe palette with light and dark variants defined in the UI.
 
 base_currency: AED
@@ -21,7 +22,7 @@ fx:
 categories:
   - key: coffee
     name: Coffee
-    color: violet
+    color: brown
     keywords: [arabica, starbucks, costa, tim hortons, caribou, coffee, cafe, brew, espresso]
 
   - key: dining
@@ -51,12 +52,12 @@ categories:
 
   - key: bills
     name: Bills & Utilities
-    color: gray
+    color: teal
     keywords: [dewa, dubai electricity, addc, sewa, etisalat, du, e&, virgin mobile, internet, smart dubai, smartdxbgov, government, amer, tasheel]
 
   - key: home
     name: Home & Services
-    color: gray
+    color: tan
     keywords: [careem homesrvices, careem home, servicemarket, helpling, justlife, urban company, urbanclap, laundry, cleaning, maintenance]
 
   - key: taxi
@@ -66,7 +67,7 @@ categories:
 
   - key: transport
     name: Transport
-    color: gray
+    color: cyan
     keywords: [rta, salik, nol, enoc, adnoc, emarat, parking, darb, metro]
 
   - key: health
@@ -76,32 +77,32 @@ categories:
 
   - key: entertainment
     name: Entertainment
-    color: gray
+    color: plum
     keywords: [vox, reel cinemas, novo, cinema, playstation, steam, xbox, ticket]
 
   - key: travel
     name: Travel
-    color: gray
+    color: navy
     keywords: [almosafer, wego, tajawal, holiday inn, marriott, hilton, emirates, flydubai, air arabia, etihad, booking.com, airbnb, agoda, hotel, expedia]
 
   - key: education
     name: Education
-    color: gray
+    color: olive
     keywords: [udemy, coursera, university, school, academy, course]
 
   - key: people
     name: Transfers to People
-    color: gray
+    color: violet
     keywords: [botim, ziina, western union, al ansari exchange]
 
   - key: fees
     name: Bank Fees
-    color: gray
+    color: slate
     keywords: [fee, charge, vat on]
 
   - key: income
     name: Income
-    color: green
+    color: forest
     keywords: [salary, payroll]
 
   - key: other

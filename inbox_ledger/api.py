@@ -115,7 +115,8 @@ class NewCategory(BaseModel):
     color: str = "gray"
 
 
-COLORS = {"blue", "orange", "aqua", "yellow", "magenta", "green", "violet", "red", "gray"}
+COLORS = {"blue", "orange", "aqua", "yellow", "magenta", "green", "violet", "red", "brown", "teal", "cyan",
+          "navy", "plum", "olive", "slate", "forest", "tan", "gray"}
 
 
 class Budget(BaseModel):
