@@ -171,7 +171,7 @@ function renderPayLater(s) {
       <div><p>Paid via ${esc(pl.provider)} this month</p><strong>${money(pl.paid)}</strong>
         <small>${pl.payments} instalment${pl.payments === 1 ? "" : "s"}, counted under the real store</small></div>
       <div><p>Still to pay</p><strong>${money(pl.owed)}</strong>
-        <small>across ${pl.open_orders.length} open order${pl.open_orders.length === 1 ? "" : "s"}</small></div>
+        <small>across ${pl.open_orders.length} open order${pl.open_orders.length === 1 ? "" : "s"} · estimated from ${esc(pl.provider)}’s emails</small></div>
     </div>
     <div class="pl-cols">
       <div><h3>This month by store</h3><ul class="pl-list">${stores.map((x) =>

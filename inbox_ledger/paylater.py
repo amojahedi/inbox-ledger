@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 from zoneinfo import ZoneInfo
@@ -196,7 +196,8 @@ def open_orders(events: list[Event], until: datetime) -> list[dict]:
         o = next((o for o in orders if o["provider"] == e.provider and same_order(o["order"], e.order)), None)
         if o is None:
             o = {"provider": e.provider, "order": e.order, "store": e.store, "remaining": None, "paid": 0.0,
-                 "total": None, "instalments": None, "last_paid": None, "next_due": ""}
+                 "total": None, "instalments": None, "last_paid": None, "next_due": "", "purchased": None,
+                 "last_seen": e.at}
             orders.append(o)
         if len(e.order) > len(o["order"]):
             o["order"] = e.order
@@ -215,4 +216,21 @@ def open_orders(events: list[Event], until: datetime) -> list[dict]:
         if e.kind == "refund" and e.full_refund:
             o["remaining"] = 0.0  # a partial refund is reflected by the next payment's "Total due"
         o["next_due"] = e.next_due or o["next_due"]
-    return [o for o in orders if o["remaining"]]
+        if e.kind == "purchase":
+            o["purchased"] = e.at
+        o["last_seen"] = e.at
+    return [o for o in orders if o["remaining"] and not _stale(o, until)]
+
+
+def _stale(o: dict, until: datetime) -> bool:
+    """Instalments are sometimes paid through receipts that name no order, so an order's balance can
+    stop updating. Treat it as settled once its schedule has clearly run out."""
+    try:
+        due = datetime.strptime(o["next_due"], "%d %b, %Y").replace(tzinfo=timezone.utc) if o["next_due"] else None
+    except ValueError:
+        due = None
+    if due:
+        return until - due > timedelta(days=40)
+    if o.get("purchased") and o["instalments"]:
+        return until - o["purchased"] > timedelta(days=31 * (o["instalments"] - 1) + 20)
+    return until - o["last_seen"] > timedelta(days=75)

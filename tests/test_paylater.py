@@ -137,3 +137,10 @@ def test_unmatched_tabby_charge_reads_tabby(store):
     store.add_messages([card("m1", "Tabby, 800 DUBAI AE", amount="10.00")])
     store.rebuild()
     assert store.transactions()[0]["merchant"] == "Tabby"
+
+
+def test_order_with_an_ended_schedule_is_not_open():
+    providers = load_providers(DEFAULTS / "paylater")
+    evs = [parse_event(purchase(), providers), parse_event(payment(), providers)]  # next payment 29 Nov 2026
+    assert open_orders(evs, datetime(2026, 12, 1, tzinfo=timezone.utc))
+    assert open_orders(evs, datetime(2027, 2, 1, tzinfo=timezone.utc)) == []
