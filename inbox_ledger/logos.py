@@ -25,6 +25,7 @@ TIMEOUT = 4.0               # seconds per request
 BUDGET = 10.0               # seconds per brand, all attempts together
 MAX_PAGE = 512 * 1024       # bytes of homepage HTML we are willing to read
 MAX_ICON = 400 * 1024       # bytes per icon
+MIN_PIXELS = 32
 MISS_TTL = 7 * 24 * 3600    # retry a brand without a usable icon after a week
 USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
               "(KHTML, like Gecko) Version/17.0 Safari/605.1.15")
@@ -222,7 +223,7 @@ def fetch_icon(brand: Brand, cache: Path) -> Optional[Path]:
             if px >= 96:
                 break
         cache.mkdir(parents=True, exist_ok=True)
-        if not best or best[0] < 16:
+        if not best or best[0] < MIN_PIXELS:  # a blurry 16px favicon looks worse than the monogram
             miss.write_text(time.strftime("%Y-%m-%dT%H:%M:%S\n"))
             return None
         out = cache / f"{brand.key}.{best[2]}"
