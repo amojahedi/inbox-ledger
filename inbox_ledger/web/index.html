@@ -8,107 +8,239 @@
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the saved theme before first paint, so dark mode never flashes white.
+    try {
+      var t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("ledger-theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="nav-inner">
       <div class="brand"><img src="icon.svg" alt="" width="22" height="22"><span>Ledger</span></div>
       <nav class="segmented" role="tablist" aria-label="Sections">
-        <button role="tab" data-view="overview" aria-selected="true">Overview</button>
-        <button role="tab" data-view="activity">Activity</button>
-        <button role="tab" data-view="rules">Rules</button>
+        <button role="tab" data-view="overview" aria-selected="true" aria-controls="view-overview">Overview</button>
+        <button role="tab" data-view="activity" aria-controls="view-activity">Activity</button>
+        <button role="tab" data-view="rules" aria-controls="view-rules">Rules</button>
       </nav>
-      <div class="month-switch">
-        <button class="icon-btn" id="prev" aria-label="Previous month">‹</button>
-        <span id="month-label"></span>
-        <button class="icon-btn" id="next" aria-label="Next month">›</button>
+      <div class="nav-end">
+        <div class="month-switch" id="month-switch">
+          <button class="icon-btn" id="prev" aria-label="Previous month">‹</button>
+          <span id="month-label" aria-live="polite"></span>
+          <button class="icon-btn" id="next" aria-label="Next month">›</button>
+        </div>
+        <button class="icon-btn gear" id="settings-btn" data-view="settings" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M18.97 9.84 L21.11 10.15 L21.11 13.85 L18.97 14.16 L18.46 15.41 L19.75 17.14 L17.14 19.75 L15.41 18.46 L14.16 18.97 L13.85 21.11 L10.15 21.11 L9.84 18.97 L8.59 18.46 L6.86 19.75 L4.25 17.14 L5.54 15.41 L5.03 14.16 L2.89 13.85 L2.89 10.15 L5.03 9.84 L5.54 8.59 L4.25 6.86 L6.86 4.25 L8.59 5.54 L9.84 5.03 L10.15 2.89 L13.85 2.89 L14.16 5.03 L15.41 5.54 L17.14 4.25 L19.75 6.86 L18.46 8.59Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
       </div>
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <!-- Overview -->
-    <section class="view" id="view-overview">
+    <section class="view" id="view-overview" role="tabpanel" aria-label="Overview">
       <div class="hero">
         <p class="eyebrow" id="hero-eyebrow">Spent this month</p>
         <h1 class="hero-number" id="hero-number">—</h1>
         <p class="hero-sub" id="hero-sub"></p>
-        <p class="source" id="source"></p>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <h2>Where it went</h2>
-          <button class="link" data-goto="activity">See all</button>
+        <div class="source-row">
+          <p class="source" id="source"></p>
+          <button class="link small" id="leave-demo" hidden>Leave demo</button>
         </div>
-        <div class="stackbar" id="stackbar" role="img"></div>
-        <ul class="legend" id="legend"></ul>
       </div>
 
-      <div class="callout" id="callout" hidden>
-        <span class="callout-dot"></span>
-        <span id="callout-text"></span>
-        <button class="link" id="callout-btn">Review</button>
+      <div id="overview-empty" class="empty-state" hidden>
+        <div class="empty-art" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="64" height="64"><rect x="10" y="34" width="10" height="18" rx="3" fill="var(--c-blue)"/><rect x="27" y="22" width="10" height="30" rx="3" fill="var(--c-orange)"/><rect x="44" y="12" width="10" height="40" rx="3" fill="var(--c-aqua)"/></svg>
+        </div>
+        <h2>No transactions yet</h2>
+        <p>Bring in your bank’s alert emails and Ledger will show where your money goes.</p>
+        <div class="empty-actions">
+          <button class="btn primary" id="empty-start">Get started</button>
+          <button class="btn secondary" id="empty-demo">Try the demo</button>
+        </div>
       </div>
 
-      <div class="stats" id="stats"></div>
-
-      <div class="card" id="paylater" hidden></div>
-
-      <div class="grid-2">
+      <div id="overview-content">
         <div class="card">
-          <div class="card-head"><h2>Daily spending</h2><span class="muted" id="daily-note"></span></div>
-          <div class="chart" id="daily-chart"></div>
+          <div class="card-head">
+            <h2>Where it went</h2>
+            <button class="link" data-goto="activity">See all</button>
+          </div>
+          <div class="stackbar" id="stackbar" role="img"></div>
+          <ul class="legend" id="legend" aria-label="Spending by category"></ul>
         </div>
-        <div class="card">
-          <div class="card-head"><h2>Last six months</h2></div>
-          <div class="chart" id="trend-chart"></div>
-        </div>
-      </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h2>Budgets</h2><span class="muted">Tap a limit to edit</span></div>
-          <ul class="budgets" id="budgets"></ul>
+        <div class="callout" id="callout" hidden>
+          <span class="callout-dot" aria-hidden="true"></span>
+          <span id="callout-text"></span>
+          <button class="link" id="callout-btn">Review</button>
         </div>
-        <div class="card">
-          <div class="card-head"><h2>Top merchants</h2></div>
-          <ol class="merchants" id="merchants"></ol>
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-head"><h2>When you spend</h2><span class="muted">By hour of day</span></div>
-        <div class="chart short" id="hour-chart"></div>
+        <div class="stats" id="stats"></div>
+
+        <div class="card" id="paylater" hidden></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h2>Daily spending</h2><span class="muted" id="daily-note"></span></div>
+            <div class="chart" id="daily-chart" data-label="Spending per day this month"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Last six months</h2></div>
+            <div class="chart" id="trend-chart" data-label="Spending per month"></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h2>Budgets</h2><span class="muted">Select a limit to change it</span></div>
+            <ul class="budgets" id="budgets"></ul>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Top merchants</h2></div>
+            <ol class="merchants" id="merchants"></ol>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>When you spend</h2><span class="muted">By hour of day</span></div>
+          <div class="chart short" id="hour-chart" data-label="Spending by hour of day"></div>
+        </div>
       </div>
     </section>
 
     <!-- Activity -->
-    <section class="view" id="view-activity" hidden>
+    <section class="view" id="view-activity" role="tabpanel" aria-label="Activity" hidden>
       <div class="toolbar">
+        <label class="visually-hidden" for="search">Search</label>
         <input type="search" id="search" placeholder="Search merchants and notes" autocomplete="off">
-        <div class="chips" id="chips"></div>
+        <div class="chips" id="chips" role="toolbar" aria-label="Filter by category"></div>
       </div>
       <div class="card flush">
         <ul class="tx-list" id="tx-list"></ul>
-        <p class="empty" id="tx-empty" hidden>No transactions here.</p>
+        <div class="empty" id="tx-empty" hidden></div>
       </div>
     </section>
 
     <!-- Rules -->
-    <section class="view" id="view-rules" hidden>
+    <section class="view" id="view-rules" role="tabpanel" aria-label="Rules" hidden>
       <div class="hero small">
-        <h1 class="hero-title">Things Ledger has learned</h1>
-        <p class="hero-sub">Each time you recategorize a merchant and keep “Remember” on, it becomes a rule here. Rules apply to past and future transactions.</p>
+        <h1 class="hero-title">What Ledger has learned</h1>
+        <p class="hero-sub">When you change a merchant’s category with “Remember” on, it becomes a rule here. Rules apply to past and future transactions.</p>
       </div>
       <div id="cat-section" hidden>
-        <p class="label section-label">Your categories</p>
+        <h2 class="group-title">Your categories</h2>
         <div class="card flush"><ul class="rule-list" id="cat-list"></ul></div>
-        <p class="label section-label">Merchant rules</p>
+        <h2 class="group-title">Merchant rules</h2>
       </div>
       <div class="card flush">
         <ul class="rule-list" id="rule-list"></ul>
-        <p class="empty" id="rule-empty" hidden>No rules yet. Open any transaction in Activity and pick a category.</p>
+        <div class="empty" id="rule-empty" hidden>
+          <strong>No rules yet</strong>
+          <span>Open any transaction in Activity and pick a category. Ledger remembers it for that merchant.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="view" id="view-settings" aria-label="Settings" hidden>
+      <div class="hero small"><h1 class="hero-title">Settings</h1></div>
+      <div class="settings">
+        <h2 class="group-title">Your data</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-red)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2.5"/><path d="m4.5 7.5 7.5 6 7.5-6"/></svg></span>
+            <div class="row-main"><div class="row-title">Gmail</div><div class="row-sub" id="gmail-status">Not connected</div></div>
+            <button class="btn secondary small" id="gmail-btn">Set up…</button>
+          </div>
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-blue)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5"/><path d="M4.5 15.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2"/></svg></span>
+            <div class="row-main"><div class="row-title">Import a file</div><div class="row-sub" id="import-status">A .mbox from Google Takeout, or a .jsonl of emails</div></div>
+            <button class="btn secondary small" id="import-btn">Choose file…</button>
+          </div>
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-green)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5 12 5l8 4.5M5.5 10v7m4.5-7v7m4-7v7m4.5-7v7M4 19h16"/></svg></span>
+            <div class="row-main"><div class="row-title">Banks</div><div class="row-sub" id="banks-status"></div></div>
+            <button class="link" id="banks-btn">Change</button>
+          </div>
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-violet)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l1.6 4.4 4.4 1.6-4.4 1.6L12 16.5l-1.6-4.4L6 10.5l4.4-1.6zM18 15l.7 1.8 1.8.7-1.8.7L18 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg></span>
+            <div class="row-main"><div class="row-title">Welcome guide</div><div class="row-sub">Go through setup again</div></div>
+            <button class="link" id="setup-btn">Open</button>
+          </div>
+        </div>
+        <p class="group-foot">Ledger asks Gmail for read-only access and only searches your bank’s alert addresses.</p>
+
+        <h2 class="group-title">Demo</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-yellow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg></span>
+            <div class="row-main"><div class="row-title" id="demo-title">Example data</div><div class="row-sub" id="demo-sub"></div></div>
+            <button class="btn secondary small" id="demo-btn">Open demo</button>
+          </div>
+        </div>
+
+        <h2 class="group-title">Appearance</h2>
+        <div class="group">
+          <div class="row">
+            <div class="row-main"><div class="row-title" id="theme-label">Theme</div></div>
+            <div class="segmented" id="theme-seg" role="radiogroup" aria-labelledby="theme-label">
+              <button role="radio" data-theme-opt="system">System</button>
+              <button role="radio" data-theme-opt="light">Light</button>
+              <button role="radio" data-theme-opt="dark">Dark</button>
+            </div>
+          </div>
+          <div class="row">
+            <label class="row-main row-title" for="currency-sel">Currency</label>
+            <select id="currency-sel">
+              <option value="code">Before the amount</option>
+              <option value="after">After the amount</option>
+              <option value="none">Hidden</option>
+            </select>
+          </div>
+          <div class="row">
+            <label class="row-main row-title" for="number-sel">Number format</label>
+            <select id="number-sel">
+              <option value="auto">Automatic</option>
+              <option value="en">1,234.56</option>
+              <option value="de">1.234,56</option>
+              <option value="fr">1 234,56</option>
+            </select>
+          </div>
+          <label class="row toggle">
+            <span class="row-main"><span class="row-title">Merchant logos</span></span>
+            <input type="checkbox" id="logos-toggle"><span class="switch" aria-hidden="true"></span>
+          </label>
+        </div>
+        <p class="group-foot" id="logos-foot"></p>
+
+        <h2 class="group-title">Storage</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-icon" style="--tint: var(--c-gray)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>
+            <div class="row-main"><div class="row-title">Data folder</div><div class="row-sub path" id="data-path"></div></div>
+            <button class="link" id="copy-path">Copy</button>
+          </div>
+        </div>
+        <p class="group-foot">Your emails, rules and settings all live in this folder. Copy it to back up; delete it to start over.</p>
+
+        <h2 class="group-title">About &amp; privacy</h2>
+        <div class="group">
+          <div class="row about">
+            <img src="icon.svg" alt="" width="44" height="44">
+            <div class="row-main"><div class="row-title">Ledger</div><div class="row-sub" id="version">Open source · MIT licence</div></div>
+            <a class="link" href="https://github.com/amojahedi/inbox-ledger" target="_blank" rel="noopener">Source code</a>
+          </div>
+          <ul class="privacy">
+            <li><strong>Stays on this computer.</strong> The dashboard only listens on this machine. No account, no cloud, no analytics.</li>
+            <li><strong>Read-only email.</strong> Gmail access can’t send, delete or change anything, and you can revoke it anytime in your Google account.</li>
+            <li><strong>No third parties.</strong> No fonts, scripts or icons are loaded from anywhere else, unless you turn on merchant logos.</li>
+          </ul>
+        </div>
       </div>
     </section>
   </main>
@@ -116,7 +248,7 @@
   <!-- Transaction sheet -->
   <div class="scrim" id="scrim" hidden></div>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
-    <div class="sheet-grabber"></div>
+    <div class="sheet-grabber" aria-hidden="true"></div>
     <div class="sheet-head">
       <div>
         <p class="eyebrow" id="sheet-date"></p>
@@ -126,16 +258,17 @@
     </div>
     <dl class="sheet-meta" id="sheet-meta"></dl>
 
-    <p class="label">Type</p>
-    <div class="segmented full" id="sheet-direction">
-      <button data-dir="out">Spending</button>
-      <button data-dir="in">Income</button>
-      <button data-dir="internal">My accounts</button>
+    <p class="label" id="type-label">Type</p>
+    <div class="segmented full" id="sheet-direction" role="radiogroup" aria-labelledby="type-label">
+      <button role="radio" data-dir="out">Spending</button>
+      <button role="radio" data-dir="in">Income</button>
+      <button role="radio" data-dir="internal">My accounts</button>
     </div>
 
-    <p class="label">Category</p>
-    <div class="cat-grid" id="sheet-cats"></div>
+    <p class="label" id="cat-label">Category</p>
+    <div class="cat-grid" id="sheet-cats" role="radiogroup" aria-labelledby="cat-label"></div>
     <div class="new-cat" id="new-cat" hidden>
+      <label class="visually-hidden" for="new-cat-name">Category name</label>
       <input type="text" id="new-cat-name" placeholder="Category name, e.g. Pets" maxlength="40">
       <div class="swatches" id="new-cat-colors" role="radiogroup" aria-label="Colour"></div>
       <button class="btn primary" id="new-cat-add" type="button">Add</button>
@@ -152,7 +285,7 @@
       <input type="checkbox" id="sheet-match-amount"><span class="switch" aria-hidden="true"></span>
     </label>
 
-    <p class="label">Note</p>
+    <p class="label"><label for="sheet-note">Note</label></p>
     <input type="text" id="sheet-note" placeholder="Add a note">
 
     <div class="sheet-actions">
@@ -161,8 +294,20 @@
     </div>
   </div>
 
+  <!-- Welcome / setup -->
+  <div class="onboarding" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title" hidden>
+    <div class="ob-top">
+      <button class="link" id="ob-back">Back</button>
+      <div class="ob-dots" id="ob-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <button class="link" id="ob-close">Set up later</button>
+    </div>
+    <div class="ob-body" id="ob-body"></div>
+  </div>
+
+  <input type="file" id="file-input" accept=".mbox,.jsonl,.json" hidden>
+  <input type="file" id="cred-input" accept=".json,application/json" hidden>
   <div class="tooltip" id="tooltip" role="status" hidden></div>
-  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>
 </body>
