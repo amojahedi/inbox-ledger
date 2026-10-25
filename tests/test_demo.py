@@ -13,7 +13,10 @@ def test_every_demo_message_parses(banks):
     msgs = generate(months=6, now=NOW)
     bank_msgs = [m for m in msgs if "tabby" not in m.sender]
     assert len(bank_msgs) > 200 and len(msgs) > len(bank_msgs)
-    assert all(parse_message(m, banks) for m in bank_msgs)
+    parsed = [parse_message(m, banks) for m in bank_msgs]
+    assert all(parsed)
+    assert {t.bank for t in parsed} == {"Emirates NBD"} and not any(t.pattern.startswith("generic_") for t in parsed)
+    assert {m.sender for m in bank_msgs} == {"alert@emiratesnbd.com", "OnlineBanking@emiratesnbd.com"}
     assert all(parse_event(m, providers) for m in msgs if "tabby" in m.sender)
     assert len({m.id for m in msgs}) == len(msgs)
 
@@ -25,11 +28,19 @@ def test_demo_is_deterministic_and_ends_now():
     assert [m.date for m in a] == sorted(m.date for m in a)
 
 
-def test_every_transfer_has_a_mirror(banks):
+def test_transfers_cover_local_and_own_accounts(banks):
     txns = [parse_message(m, banks) for m in generate(now=NOW) if "tabby" not in m.sender]
     transfers = [t for t in txns if t.kind == "transfer"]
-    assert transfers and len(find_mirrors(txns, banks)) == len(transfers)
-    assert {t.direction for t in transfers} == {"out", "internal"}
+    assert transfers and {t.direction for t in transfers} == {"out", "internal"}
+    assert all(t.account in {"7710", "3390"} for t in transfers)
+    assert not find_mirrors(txns, banks)  # ENBD sends one email per transfer, so nothing is double counted
+
+
+def test_demo_has_salary_and_cash_withdrawals(banks):
+    txns = [parse_message(m, banks) for m in generate(now=NOW) if "tabby" not in m.sender]
+    salary = [t for t in txns if t.kind == "account_credit"]
+    assert len(salary) == 6 and {t.amount for t in salary} == {18500.0} and {t.account for t in salary} == {"7710"}
+    assert any(t.kind == "account_debit" and t.merchant_raw == "ATM / cash withdrawal" for t in txns)
 
 
 def test_demo_has_unmatched_merchants(store):
