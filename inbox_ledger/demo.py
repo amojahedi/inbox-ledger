@@ -1,4 +1,4 @@
-"""Synthetic Mashreq-style emails for the demo ledger. Every name and number is invented."""
+"""Synthetic Emirates NBD-style alert emails for the demo ledger. Every name and number is invented."""
 from __future__ import annotations
 
 import calendar
@@ -8,8 +8,8 @@ from typing import Optional
 
 from .parsing import RawMessage
 
-ALERTS = "MashreqAlerts@mashreq.com"
-DIGITAL = "MashreqDigital@mashreq.com"
+ALERTS = "alert@emiratesnbd.com"
+ONLINE = "OnlineBanking@emiratesnbd.com"
 CARD, MAIN, SAVINGS = "4021", "7710", "3390"
 UAE_OFFSET = timedelta(hours=4)
 
@@ -66,38 +66,39 @@ def _stamp(rng: random.Random, year: int, month: int, day: int, hours: tuple[int
 
 
 def _card(rng: random.Random, local: datetime, merchant: str, amount: float, currency: str) -> tuple:
-    when = local.strftime("%d-%b-%Y %I:%M %p").upper()
-    body = (f"Your NEO VISA Debit Card Card ending with {CARD} was used for a purchase of {currency} "
-            f"{_fmt(amount)} at {merchant} on {when}. Available limit is AED {_fmt(rng.uniform(900, 9200))}")
-    return local, ALERTS, "Transaction Confirmation on Mashreq Card", body
+    when = local.strftime("%d-%b-%Y %I:%M %p")
+    body = (f"Dear Customer, Purchase of {currency} {_fmt(amount)} with Debit Card ending {CARD} at {merchant} "
+            f"on {when}. Avl Bal AED {_fmt(rng.uniform(900, 9200))}")
+    return local, ALERTS, "Card transaction alert", body
+
+
+def _masked(account: str) -> str:
+    return f"012XXX{account[:2]}XXX{account[2:]}"
+
+
+def _advice(local: datetime, account: str, text: str) -> tuple:
+    """An account 'Transaction advice' alert; the account's last 4 digits are only in the subject."""
+    return (local, ALERTS, f"Transaction advice for your account ending with {account}",
+            f"Dear Customer, {text.format(acct=_masked(account))}")
+
+
+def _atm(rng: random.Random, local: datetime) -> tuple:
+    amount = float(rng.choice([200, 300, 500, 500, 1000]))
+    return _advice(local, MAIN, f"AED {_fmt(amount)} has been withdrawn from your account {{acct}}. The available "
+                                f"balance is AED {_fmt(rng.uniform(900, 9200))}. Save queuing time by using our "
+                                f"free ATMs 24 x 7.")
 
 
 def _transfer(rng: random.Random, local: datetime, kind: str, src: str, to_name: str,
               amount: float) -> list[tuple]:
-    """A transfer receipt plus the account-debit alert the bank sends about 2 minutes later."""
-    ref = f"M{'LC' if kind == 'local' else 'OC'}{local:%d%m%y%H%M}{rng.randint(100, 999)}"
-    stamp = f"{local:%Y-%m-%d %H:%M:%S}"
-    head = "Your money transfer request was processed successfully * "
-    tail = (f"Rate1 AED = 1.00000 AED * Transfer amountAED {_fmt(amount)} * "
-            f"Amount to be debitedAED {_fmt(amount)} * StatusSuccess")
-    if kind == "local":
-        subject = "Local AED Transfer request via Mobile Banking"
-        body = (f"{head}Transfer typeLocal AED * From Account********{src} * Reference number{ref} * "
-                f"Transaction date{stamp} * Destination countryUNITED ARAB EMIRATES * "
-                f"To account {to_name} {'*' * 19}{rng.randint(1, 9999):04d} * {tail}")
-    else:
-        subject = "Own Account Transfer request via Mobile Banking"
-        body = (f"{head}Transfer typeOwn Account * From account********{src} * Reference number{ref} * "
-                f"Transaction date{stamp} * Beneficiary bank countryUNITED ARAB EMIRATES * "
-                f"Beneficiary account {to_name} ********{SAVINGS} * {tail}")
-    if src == SAVINGS:
-        alert = (f"Your AC No:XXXXXXXX{src} is debited with AED {_fmt(amount)} for Aani Instant Payments "
-                 f"(Local IPP Transfer). Login to Online Banking for details")
-    else:
-        alert = (f"Amount of AED {_fmt(amount)} has been debited from your Mashreq account no. "
-                 f"XXXXXXXX{src} for Account to Account Transfer. Login to Online Banking for details.")
-    return [(local, DIGITAL, subject, body),
-            (local + timedelta(minutes=2), ALERTS, "Transaction Notification", alert)]
+    """An online-banking transfer notification (ENBD sends no separate debit alert for these)."""
+    label = "Local Bank Transfer" if kind == "local" else "Own Account Transfer"
+    iban = f"AE07033{rng.randint(10**15, 10**16 - 1)}"
+    body = (f"CIF: ***00*** Dear Alex Demo, Here is a consolidated status of your {label}.\n"
+            f"Transaction Date:\n{local:%d/%b/%Y %I:%M %p}\nFrom Account:\n012******{src}\n"
+            f"Debit Amount:\nAED {_fmt(amount)}\nTransaction Amount:\nAED {_fmt(amount)}\nExchange Rate:\nN/A\n"
+            f"Beneficiary Name:\n{to_name}\nBeneficiary Account / IBAN:\n{iban}\nStatus:\nSuccess")
+    return [(local, ONLINE, label, body)]
 
 
 TABBY = "notifications@tabby.ai"
@@ -164,9 +165,10 @@ def _month_events(rng: random.Random, year: int, month: int, scale: float, trave
         out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, min(days, 26)), (11, 21)), store,
                             round(rng.uniform(lo, hi), 2))
 
-    out.append((_stamp(rng, year, month, 1, (7, 8)), ALERTS, "Transaction Notification",
-                f"Amount of AED {_fmt(SALARY)} has been credited to your Mashreq account no. "
-                f"XXXXXXXX{MAIN} for Salary. Login to Online Banking for details."))
+    out.append(_advice(_stamp(rng, year, month, 1, (7, 8)), MAIN,
+                       f"AED {_fmt(SALARY)} has been credited to your account {{acct}} for Salary."))
+    for _ in range(rng.randint(0, 2)):
+        out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, days), (10, 22))))
     out += _transfer(rng, _stamp(rng, year, month, 2, (9, 12)), "local", MAIN, LANDLORD, RENT)
     out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, 6), (18, 21)), "own", MAIN, "Alex Demo",
                      SAVING_TRANSFER)

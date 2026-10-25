@@ -1,0 +1,53 @@
+# Emirates Islamic (UAE).
+#
+# Wording follows the sample push messages Emirates Islamic publishes on its SMS-banking page ("AED 1,800.00
+# has been deducted from your account as POS transaction.", "... has been debited from your Credit/Charge Card
+# at STORE, DUBAI. Thank You"). Whether the e-mail alerts use the same wording is not confirmed.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: Emirates Islamic
+status: beta
+gmail_query: 'from:emiratesislamic.ae (subject:alert OR subject:transaction)'
+senders: ['emiratesislamic\.ae>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: pos_transaction
+    kind: card_purchase
+    direction: out
+    label: 'POS transaction'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been deducted from your account(?: [\dXx*\-]*?(?P<last4>\d{3,4})(?![\dXx*\-]))? as POS transaction'
+
+  - name: credit_card_cash_advance
+    kind: account_debit
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been debited from your Credit/Charge Card for cash advance at (?P<merchant>.+?)(?=\.\s*Thank|\.?$)'
+
+  - name: credit_card_purchase
+    kind: card_purchase
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been debited from your Credit/Charge Card (?:at|for) (?P<merchant>.+?)(?=\.\s*Thank|\.?$)'
+
+  - name: atm_withdrawal
+    kind: account_debit
+    direction: out
+    label: 'ATM withdrawal'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been withdrawn from your account(?: [\dXx*\-]*?(?P<last4>\d{3,4})(?![\dXx*\-]))? as ATM transaction'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    label: 'Account debit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:deducted|paid|debited) from your account(?: [\dXx*\-]*?(?P<last4>\d{3,4})(?![\dXx*\-]))?(?: (?:as payment to (?:your )?|for |through |as )(?P<merchant>.+?)(?=\.\s|\s+Visit|\.?$))?'
+
+  - name: account_credit_received
+    kind: account_credit
+    direction: in
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been received as (?P<merchant>.+?)(?=\.\s|\s+The\b|\.?$)'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    label: 'Account credit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:deposited|credited) to your account(?: [\dXx*\-]*?(?P<last4>\d{3,4})(?![\dXx*\-]))?(?: (?:through|by|via|as) (?:the )?(?P<merchant>.+?)(?=\.\s|\s+Visit|\.?$))?'

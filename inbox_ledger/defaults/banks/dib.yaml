@@ -1,0 +1,58 @@
+# Dubai Islamic Bank (UAE) — Arabic-first notification emails from dib.ae.
+#
+# Formats follow publicly posted DIB emails: purchase notices ("إشعار مشتريات"), account deposit/debit/withdrawal
+# notices, "تحويل الأموال" transfer notices, the English "Money Transfer" notice, card refunds and reversals.
+# Bodies carry only a date (no time), so the email timestamp is used for the time of day.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: Dubai Islamic Bank
+status: beta
+gmail_query: 'from:dib.ae (subject:"DIB Notification")'
+senders: ['dib\.ae>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: card_purchase
+    kind: card_purchase
+    direction: out
+    regex: 'إشعار مشتريات المبلغ (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: بتاريخ [\d-]+)? الدفع (?:الى|إلى) (?P<merchant>.+?) رقم البطاقة :?\s*[Xx*]*(?P<last4>\d{4})'
+
+  - name: card_reversal
+    kind: card_purchase
+    direction: in
+    regex: 'A transaction to the value of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) made at (?P<merchant>.+?) on your DIB card ending with [Xx*]*(?P<last4>\d{4}) has been reversed'
+
+  - name: card_refund
+    kind: card_purchase
+    direction: in
+    label: 'Card refund'
+    regex: 'تم إرجاع مبلغ (?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) درهم على بطاقة بنك دبي الإسلامي(?:.*?والمنتهية بالرقم [Xx*]*(?P<last4>\d{4})|)'
+
+  - name: transfer_own
+    kind: transfer
+    direction: internal
+    label: 'Own account transfer'
+    regex: 'إشعار تحويل الأموال بين حساباتك.*?المبلغ (?:\(.*?\) )?(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) من حساب \S*?(?P<last4>\d{1,4})(?=\s|$)'
+
+  - name: transfer
+    kind: transfer
+    direction: out
+    label: 'Transfer'
+    regex: 'إشعار تحويل الأموال.*?المبلغ (?:\(.*?\) )?(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) من حساب \S*?(?P<last4>\d{1,4})(?=\s|$)(?:.*?البنك المستفيد (?P<counterparty>.+?) الحالة|)'
+
+  - name: transfer_en
+    kind: transfer
+    direction: out
+    label: 'Transfer'
+    regex: 'Money Transfer.*?Amount (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) From \S*?(?P<last4>\d{1,4})(?=\s)(?:.*?Beneficiary Bank (?P<counterparty>.+?) Status|)'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    regex: 'إشعار إيداع المبلغ (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: بتاريخ [\d-]+)?(?: المعاملة (?P<merchant>.+?)(?= من حساب|$))?(?: من حساب \S*?(?P<last4>\d{1,4})(?=\s|$))?'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    regex: 'إشعار (?:خصم|سحب) المبلغ (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: بتاريخ [\d-]+)?(?: المعاملة (?P<merchant>.+?)(?= من حساب|$))?(?: من حساب \S*?(?P<last4>\d{1,4})(?=\s|$))?'

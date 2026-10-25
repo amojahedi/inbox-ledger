@@ -1,0 +1,38 @@
+# Abu Dhabi Islamic Bank (UAE).
+#
+# Formats follow publicly posted ADIB alert emails: "Purchase Transaction Alert" ("Transaction of AED 73.40
+# debited from your a/c *123 at STORE. Avl Bal is ..."), and "Debit/Credit Transaction Alert" ("AED 41.25 was
+# debited from your account *456. Your available account balance is ..."). The alerts carry no date or
+# card number; the account digits are the last 3-4 digits of the account.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: ADIB
+status: beta
+gmail_query: 'from:adib.ae (subject:"Transaction Alert")'
+senders: ['adib\.ae>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: card_purchase
+    kind: card_purchase
+    direction: out
+    regex: 'Transaction of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) debited from your a/c \*?(?P<last4>\d{3,4})(?![\dXx*\-]) at (?P<merchant>.+?)(?=\.\s*Avl\b|\.?$)'
+
+  - name: account_debit_alert
+    kind: account_debit
+    direction: out
+    label: 'Account debit'
+    regex: 'Transaction of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) debited from your a/c \*?(?P<last4>\d{3,4})(?![\dXx*\-])'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    label: 'Account debit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) was debited from your account \*?(?P<last4>\d{3,4})(?![\dXx*\-])'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    label: 'Account credit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) was credited to your account \*?(?P<last4>\d{3,4})(?![\dXx*\-])'

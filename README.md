@@ -69,14 +69,40 @@ Run `sync` again whenever you like. It only fetches emails newer than the last o
 
 Prefer not to connect Gmail? Export your mail with [Google Takeout](https://takeout.google.com) and run `python -m inbox_ledger import path/to/mail.mbox`.
 
+## Supported banks
+
+| Bank | Country | Status |
+|---|---|---|
+| Mashreq | UAE | verified |
+| Emirates NBD | UAE | beta |
+| Liv. (Emirates NBD) | UAE | beta |
+| Abu Dhabi Islamic Bank (ADIB) | UAE | beta |
+| Dubai Islamic Bank (DIB) | UAE | beta |
+| Emirates Islamic | UAE | beta |
+| ADCB | UAE | beta |
+| First Abu Dhabi Bank (FAB) | UAE | beta |
+| RAKBANK | UAE | beta |
+| Commercial Bank of Dubai (CBD) | UAE | beta |
+| Wio | UAE | beta |
+| Any other bank | anywhere | fallback |
+
+**verified** means the patterns were checked against real alerts. **beta** profiles were written from publicly posted example alerts and have not been verified against real mail yet, so expect gaps; the *Any bank* fallback may still catch what they miss. **fallback** is a generic profile for common English phrasings ("purchase of AED 12.34 at ...", "debited from your account ...", "credited with ...") from alert-style senders (`alerts@`, `notifications@`, `noreply@`) at bank domains. Bank-specific profiles always win, and anything the fallback reads is tagged with a `generic_` pattern name so it can be flagged as less certain.
+
+If your bank is a beta profile and an alert is missed, or your bank is not listed, please send a sample (see below).
+
 ## Add your bank
 
-Copy [`inbox_ledger/defaults/banks/mashreq.yaml`](inbox_ledger/defaults/banks/mashreq.yaml) to `data/banks/yourbank.yaml` and edit it. The file covers:
+**Easiest: contribute a redacted sample.** Open an issue or pull request with the alert email body (and its subject and sender address) for each kind of alert you get: card purchase, debit, credit, transfer. Replace names, account and card numbers and balances with made-up values, but keep the wording and layout exactly as it arrived. With a sample, a profile takes minutes; without one it is guesswork.
+
+**Or write the profile yourself.** Copy [`inbox_ledger/defaults/banks/mashreq.yaml`](inbox_ledger/defaults/banks/mashreq.yaml) to `data/banks/yourbank.yaml` and edit it. The file covers:
 
 - `gmail_query`: which emails to fetch
 - `senders`: which sender addresses this profile handles
-- `patterns`: one regex per email type, with named groups `amount`, `currency`, `last4`, `merchant`, `counterparty`, `when`, `transfer_type`, `status`
+- `patterns`: one regex per email type, with named groups `amount`, `currency`, `last4`, `merchant`, `counterparty`, `when`, `transfer_type`, `status`. Optional per pattern: `label` (merchant name when the alert names none), `subject_regex` (extra groups taken from the subject line) and `when_format` (common date formats are tried automatically)
 - `dedupe`: which alert mirrors which receipt
+- `status`: `verified` once you have checked it against real alerts, otherwise `beta`
+
+Your files override built-in ones with the same file name, and profiles you add are always tried before the *Any bank* fallback.
 
 Pay-later providers live in [`defaults/paylater/`](inbox_ledger/defaults/paylater/) and follow the same idea: patterns for the provider's emails, plus `card_merchant`, the name the bank alert shows.
 
