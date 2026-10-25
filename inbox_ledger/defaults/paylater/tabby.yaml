@@ -42,10 +42,14 @@ events:
       remaining: 'Total due{amount}'
       next_due: 'Next payment[\s|]*(?P<v>\d{1,2} \w{3}, \d{4})'
 
-  - kind: consolidated        # several instalments in one charge; no store
-    when: 'consolidated receipt'
+  - kind: consolidated        # several instalments in one charge
+    when: 'consolidated receipt|receipt for your payments'
     fields:
       paid: 'Paid today{amount}'
+    # Newer receipts itemise the charge ("| Noon Payment 8 of 12 |  11.06 |"): Ledger splits it.
+    items_after: 'Your payments'
+    item: '\|\s*(?P<label>[^|\n]*?[A-Za-z][^|\n]*?)\s*\|\s*(?:AED)?\s*(?P<v>[\d,]*\.\d{2})\s*\|'
+    item_store: ['^(?P<v>.+?) Payment \d+ of \d+$', '(?P<v>Tabby Card)$', '(?P<v>Pay Next Month)$']
 
   - kind: refund
     when: 'refund'
@@ -53,5 +57,12 @@ events:
     fields:
       refunded: 'Refunded(?: to your card)?{amount}'
       full_refund: '(?P<v>Your order was refunded|refunded your order from)'
+      order: 'Order number[\s|]*#?(?P<v>[\w-]+)'
+      total: 'Total order amount{amount}'
+
+  - kind: update              # order total changed; nothing charged
+    when: 'Payment schedule update|order changed from'
+    store: ['Your (?P<v>.+?) order changed from']
+    fields:
       order: 'Order number[\s|]*#?(?P<v>[\w-]+)'
       total: 'Total order amount{amount}'

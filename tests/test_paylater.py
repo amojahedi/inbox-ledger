@@ -115,3 +115,25 @@ def test_final_payment_and_full_refund_close_orders():
     assert open_orders(evs, datetime(2027, 1, 1, tzinfo=timezone.utc)) == []
     evs = [parse_event(m, providers) for m in (purchase(), full_refund())]
     assert open_orders(evs, datetime(2027, 1, 1, tzinfo=timezone.utc)) == []
+
+
+def itemised(id="i1", date="2026-10-29T09:00:02Z"):
+    body = (" Thanks for your payment\nHere's a receipt for your payments.\n\n| Paid today |  120.50 |\n\n| |\n\n"
+            "Your payments\n\n| |\n\n| Demo Store Payment 5 of 12 |  20.50 |\n| October bill Pay Next Month |  60.00 |\n"
+            "| March payment Tabby Card |  40.00 |\n\nGot questions?")
+    return RawMessage(id, date, TABBY, "Here’s your Tabby payment receipt", body)
+
+
+def test_itemised_receipt_splits_the_charge(store):
+    store.add_messages([card("m1", "TABBY FZ LLC DUBAI AE", amount="120.50", date="2026-10-29T09:00:00Z",
+                             when="29-OCT-2026 01:00 PM"), itemised()])
+    assert store.rebuild()["unparsed"] == 0
+    parts = sorted((t["merchant"], t["amount"]) for t in store.transactions())
+    assert parts == [("Demo Store", 20.5), ("Pay Next Month", 60.0), ("Tabby Card", 40.0)]
+    assert store.summary("2026-10")["spent"] == 120.5
+
+
+def test_unmatched_tabby_charge_reads_tabby(store):
+    store.add_messages([card("m1", "Tabby, 800 DUBAI AE", amount="10.00")])
+    store.rebuild()
+    assert store.transactions()[0]["merchant"] == "Tabby"

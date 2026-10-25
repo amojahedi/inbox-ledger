@@ -143,6 +143,7 @@ class Store:
         events = [e for e in (paylater.parse_event(m, self.providers) for m in pl_msgs) if e]
         pl_ids = {m.id for m in pl_msgs}
         txns = [t for t in (parse_message(m, self.banks) for m in msgs if m.id not in pl_ids) if t]
+        parsed = len(txns) + len(events)  # emails understood; a split charge later yields several rows
         pairs = paylater.attach(txns, events, self.providers, {b.name: b.timezone for b in self.banks})
         mirrors = find_mirrors(txns, self.banks)
         rules = {(r["merchant_key"], r["amount"]): r for r in self.db.execute("SELECT * FROM merchant_rules")}
@@ -175,7 +176,7 @@ class Store:
                 [(e.message_id, e.provider, e.kind, e.at.isoformat(), e.store, e.order, e.paid, e.remaining, e.total,
                   e.refunded, e.instalments, e.next_due, int(e.full_refund), pairs.get(e.message_id)) for e in events])
         out = {"messages": len(msgs), "transactions": len(txns), "mirrors": len(mirrors),
-               "unparsed": len(msgs) - len(txns) - len(events)}
+               "unparsed": len(msgs) - parsed}
         if self.providers:
             out["paylater"] = {"emails": len(events), "matched": len(pairs)}
         return out

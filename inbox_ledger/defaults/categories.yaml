@@ -27,7 +27,7 @@ categories:
   - key: dining
     name: Food & Dining
     color: orange
-    keywords: [careem food, talabat, deliveroo, noon food, zomato, qlub, restaurant, tea house, mcdonald, kfc, burger, pizza, shawarma, bakery, kitchen, grill, eatery]
+    keywords: [careem food, calo, kcal, right bite, eat clean, talabat, deliveroo, noon food, zomato, qlub, restaurant, tea house, mcdonald, kfc, burger, pizza, shawarma, bakery, kitchen, grill, eatery]
 
   - key: groceries
     name: Groceries
@@ -37,7 +37,7 @@ categories:
   - key: shopping
     name: Shopping
     color: red
-    keywords: [careem shops, amazon, amzn mktp, noon, ikea, namshi, shein, h&m, zara, centrepoint, max fashion, marks&spencer, perfume, sharaf d g, damas, landmark retail, sharaf dg, virgin megastore, tabby, tamara, mall]
+    keywords: [careem shops, ounass, 6th street, brands for less, gymshark, shein, level shoes, bloomingdales, harvey nichols, splash, lifestyle, home centre, ace hardware, apple store, jumbo, virgin megastore, adidas, nike, decathlon, sun & sand, amazon, amzn mktp, noon, ikea, namshi, shein, h&m, zara, centrepoint, max fashion, marks&spencer, perfume, sharaf d g, damas, landmark retail, sharaf dg, virgin megastore, tabby, tamara, mall]
 
   - key: subscriptions
     name: Subscriptions
@@ -57,7 +57,7 @@ categories:
   - key: home
     name: Home & Services
     color: gray
-    keywords: [careem homesrvices, careem home, justlife, urban company, urbanclap, laundry, cleaning, maintenance]
+    keywords: [careem homesrvices, careem home, servicemarket, helpling, justlife, urban company, urbanclap, laundry, cleaning, maintenance]
 
   - key: taxi
     name: Taxi
@@ -72,7 +72,7 @@ categories:
   - key: health
     name: Health & Beauty
     color: green
-    keywords: [pharmacy, aster, life pharmacy, boots, clinic, hospital, medical, dental, salon, saloon, beauty, spa, gym, fitness]
+    keywords: [pharmacy, iherb, ufc, gold's gym, barry's, f45, the platform, aster, nmc, mediclinic, life pharmacy, boots, clinic, hospital, medical, dental, salon, saloon, beauty, spa, gym, fitness]
 
   - key: entertainment
     name: Entertainment
@@ -82,7 +82,7 @@ categories:
   - key: travel
     name: Travel
     color: gray
-    keywords: [emirates, flydubai, air arabia, etihad, booking.com, airbnb, agoda, hotel, expedia]
+    keywords: [almosafer, wego, tajawal, holiday inn, marriott, hilton, emirates, flydubai, air arabia, etihad, booking.com, airbnb, agoda, hotel, expedia]
 
   - key: education
     name: Education

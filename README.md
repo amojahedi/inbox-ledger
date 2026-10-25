@@ -26,6 +26,7 @@ Most budgeting apps want your bank password, or a paid aggregator that doesn't s
 - **Removes double counting.** Banks often send two emails for one movement (a transfer receipt and a debit alert). Ledger pairs them and keeps one.
 - **Knows what isn't spending.** Moving money between your own accounts is tracked separately and never inflates your monthly total.
 - **Learns from one correction.** Tell it once that *Golden Sands* is Shopping, or that a transfer to someone is between your own accounts. That merchant is handled the same way, past and future, from then on. Every learned rule is listed and can be undone. A rule can also be tied to one exact amount, for when one app covers different things (your AED 32.50 coffee order on a food-delivery app, say).
+- **Understands pay-later.** A card charge that just says "Tabby" is paired with Tabby's own email (same amount, seconds apart) and shown as the real store, e.g. "Noon · via Tabby". Charges covering several orders are split. A Pay later card shows this month's instalments and what you still owe per order. Providers are YAML profiles too, so Tamara or Postpay can be added the same way.
 - **Your categories, not just ours.** Create a category from any transaction in two taps (name and colour), then budget and teach rules with it like a built-in one.
 - **Shows you the month.** Totals against last month, what came in and what you saved, a category breakdown, daily and hourly spending, a six-month trend, budgets per category, and top merchants. Light and dark mode, desktop and phone.
 
@@ -76,6 +77,8 @@ Copy [`inbox_ledger/defaults/banks/mashreq.yaml`](inbox_ledger/defaults/banks/ma
 - `senders`: which sender addresses this profile handles
 - `patterns`: one regex per email type, with named groups `amount`, `currency`, `last4`, `merchant`, `counterparty`, `when`, `transfer_type`, `status`
 - `dedupe`: which alert mirrors which receipt
+
+Pay-later providers live in [`defaults/paylater/`](inbox_ledger/defaults/paylater/) and follow the same idea: patterns for the provider's emails, plus `card_merchant`, the name the bank alert shows.
 
 Then run `python -m inbox_ledger rebuild`. Raw emails are stored, so improving a pattern re-parses your whole history instantly. Pull requests with new bank profiles are very welcome.
 

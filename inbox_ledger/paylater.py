@@ -8,7 +8,7 @@ with the event of the same amount closest in time, and re-label the charge.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
@@ -37,6 +37,7 @@ class Event:
     instalments: Optional[int] = None
     next_due: str = ""
     full_refund: bool = False
+    items: list = field(default_factory=list)  # [(store, amount)] for itemised receipts
 
 
 @dataclass
@@ -63,6 +64,9 @@ def load_provider(path: Path) -> Provider:
             "store": [re.compile(p.replace("{amount}", amount), re.S) for p in e.get("store", [])],
             "fields": {k: re.compile(v.replace("{amount}", amount), re.S) for k, v in e.get("fields", {}).items()},
             "count": re.compile(e["count_instalments"]) if e.get("count_instalments") else None,
+            "items_after": re.compile(e["items_after"]) if e.get("items_after") else None,
+            "item": re.compile(e["item"]) if e.get("item") else None,
+            "item_store": [re.compile(p) for p in e.get("item_store", [])],
         })
     return Provider(spec["name"], [re.compile(s, re.I) for s in spec["senders"]], spec["card_merchant"],
                     float(spec.get("match_minutes", 30)), spec.get("gmail_query", ""), events)
@@ -110,6 +114,12 @@ def parse_event(msg: RawMessage, providers: Iterable[Provider]) -> Optional[Even
                     setattr(ev, name, _num(v))
             if spec["count"]:
                 ev.instalments = len(spec["count"].findall(msg.body)) + 1
+            if spec["item"] and spec["items_after"]:
+                start = spec["items_after"].search(msg.body)
+                for m in spec["item"].finditer(msg.body, start.end() if start else len(msg.body)):
+                    label = m.group("label").strip()
+                    store = next((x.group("v") for x in (r.search(label) for r in spec["item_store"]) if x), label)
+                    ev.items.append((store, _num(m.group("v"))))
             if ev.kind in PAYMENT_KINDS and not ev.paid:
                 return None
             return ev
@@ -130,8 +140,9 @@ def attach(txns: list[Transaction], events: list[Event], providers: list[Provide
     """
     by_provider = {p.name: p for p in providers}
     pairs: dict[str, str] = {}
+    parts: list[tuple[Transaction, list]] = []
     used: set[str] = set()
-    for t in sorted(txns, key=lambda t: t.occurred_at):
+    for t in sorted(list(txns), key=lambda t: t.occurred_at):
         p = next((p for p in providers if t.direction == "out" and t.merchant_key.startswith(p.card_merchant)), None)
         if not p:
             continue
@@ -147,6 +158,7 @@ def attach(txns: list[Transaction], events: list[Event], providers: list[Provide
                 best = (gap, e)
         if not best:
             t.extra["via"] = p.name
+            t.merchant, t.merchant_key = p.name, p.card_merchant  # "Tabby, 800…" -> "Tabby"
             continue
         e = best[1]
         used.add(e.message_id)
@@ -155,12 +167,26 @@ def attach(txns: list[Transaction], events: list[Event], providers: list[Provide
         if e.order:
             t.extra["order"] = e.order
         if e.store:
-            t.merchant_raw = e.store
-            t.merchant_key = merchant_key(e.store, location=False)  # store names carry no "<city> <CC>" suffix
-            t.merchant = display_name(e.store, location=False)
+            _relabel(t, e.store)
+        elif e.items and abs(sum(a for _, a in e.items) - t.amount) < 0.05:
+            parts.append((t, e.items))
         elif e.kind == "consolidated":
             t.merchant = f"{p.name} (several orders)"
+    for t, items in parts:  # one charge paid several orders: split it so each part counts under its store
+        i = txns.index(t)
+        pieces = []
+        for n, (store, amount) in enumerate(items, 1):
+            piece = replace(t, id=f"{t.id}-{n}", amount=amount, extra={**t.extra, "part": f"{n}/{len(items)}"})
+            _relabel(piece, store)
+            pieces.append(piece)
+        txns[i:i + 1] = pieces
     return pairs
+
+
+def _relabel(t: Transaction, store: str) -> None:
+    t.merchant_raw = store
+    t.merchant_key = merchant_key(store, location=False)  # store names carry no "<city> <CC>" suffix
+    t.merchant = display_name(store, location=False)
 
 
 def open_orders(events: list[Event], until: datetime) -> list[dict]:
@@ -177,6 +203,8 @@ def open_orders(events: list[Event], until: datetime) -> list[dict]:
         o["store"] = o["store"] or e.store
         if e.total and e.kind == "purchase":
             o["total"], o["instalments"] = e.total, e.instalments
+        elif e.total and e.kind == "update":
+            o["total"] = e.total
         if e.kind in PAYMENT_KINDS:
             o["paid"] += e.paid
             o["last_paid"] = e.at
