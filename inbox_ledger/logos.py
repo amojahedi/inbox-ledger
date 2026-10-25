@@ -195,7 +195,10 @@ def candidates(brand: Brand, deadline: float = 0) -> list[str]:
         root = urljoin(final, "/")
     except Exception:
         pass
-    urls += [urljoin(root, "/apple-touch-icon.png"), urljoin(root, "/favicon.ico")]
+    # Well-known paths, sharpest first — many sites render their <head> with JavaScript.
+    urls += [urljoin(root, p) for p in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png",
+                                        "/android-chrome-192x192.png", "/favicon-196x196.png", "/logo192.png",
+                                        "/favicon-32x32.png", "/favicon.ico")]
     seen: set[str] = set()
     return [u for u in urls if not (u in seen or seen.add(u)) and not u.startswith("data:")]
 
