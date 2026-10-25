@@ -17,23 +17,26 @@ _NOISE = re.compile(r"[*#]+|\s\+?\d{7,}|\bpending\b|,?\s+\d+$|,\s*$", re.I)
 _SUFFIX = re.compile(r"(?:\s+(?:fz|llc|l\.l\.c|fze|fzco|fzc|co|inc|ltd|trading))+\.?$", re.I)
 
 
-def _strip(name: str) -> str:
+def _strip(name: str, location: bool = True) -> str:
     original = re.sub(r"\s+", " ", name).strip(" .,-")
-    # Order matters: "Hala Taxi Ras Al Khaimah AE" -> drop country, then one city.
-    name = _COUNTRY.sub("", original)
-    name = _CITY.sub("", name)
+    name = original
+    if location:
+        # Order matters: "Hala Taxi Ras Al Khaimah AE" -> drop country, then one city.
+        name = _COUNTRY.sub("", name)
+        name = _CITY.sub("", name)
     name = _NOISE.sub(" ", name)
     name = re.sub(r"\s+", " ", name).strip(" .,-")
     name = _SUFFIX.sub("", name).strip(" .,-")
     return name or original
 
 
-def merchant_key(raw: str) -> str:
-    return _strip(raw).lower()
+def merchant_key(raw: str, location: bool = True) -> str:
+    """location=False for names without a "<city> <CC>" suffix (e.g. stores named by pay-later emails)."""
+    return _strip(raw, location).lower()
 
 
-def display_name(raw: str) -> str:
-    name = _strip(raw)
-    if name.isupper() or name.islower():
+def display_name(raw: str, location: bool = True) -> str:
+    name = _strip(raw, location)
+    if location and (name.isupper() or name.islower()):  # bank alerts shout; store names are already cased
         name = " ".join(w if any(c in w for c in "&/") else w.capitalize() for w in name.split())
     return name

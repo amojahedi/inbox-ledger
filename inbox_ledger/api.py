@@ -53,6 +53,7 @@ def meta():
         "months": months,
         "current": months[-1]["month"] if months else date.today().isoformat()[:7],
         "banks": [b.name for b in store.banks],
+        "pay_later": [p.name for p in store.providers],
         "source": {"demo": (data_dir() / "DEMO").exists(), **store.source()},
     }
 
@@ -64,10 +65,10 @@ def summary(month: str):
 
 @app.get("/api/transactions")
 def transactions(month: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None,
-                 internal: str = "hide"):
+                 internal: str = "hide", via: Optional[str] = None):
     if internal not in ("hide", "only", "show"):
         raise HTTPException(400, "internal must be hide, only or show")
-    return store.transactions(month=month, category=category, q=q, internal=internal)
+    return store.transactions(month=month, category=category, q=q, internal=internal, via=via)
 
 
 @app.patch("/api/transactions/{tx_id}")

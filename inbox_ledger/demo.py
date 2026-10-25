@@ -100,6 +100,42 @@ def _transfer(rng: random.Random, local: datetime, kind: str, src: str, to_name:
             (local + timedelta(minutes=2), ALERTS, "Transaction Notification", alert)]
 
 
+TABBY = "notifications@tabby.ai"
+_TABBY_STORES = [("Noon", 380, 1400), ("Namshi", 260, 900), ("IKEA", 600, 2400), ("Sharaf DG", 900, 3600)]
+
+
+def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, n: int = 4) -> list[tuple]:
+    """A pay-in-4 order: each instalment is a 'Tabby' card charge plus Tabby's email naming the store."""
+    order = f"NA{rng.randint(10**11, 10**12 - 1)}{rng.randint(1000, 9999)}"
+    parts = [round(total / n, 2)] * (n - 1)
+    parts.append(round(total - sum(parts), 2))
+    dates = [local + timedelta(days=30 * i) for i in range(n)]
+    sched = "".join(f"| | {d:%-d %b, %Y} |  {_fmt(a)} |\n| | |\n" for d, a in zip(dates[1:], parts[1:]))
+    out = []
+    for i, (when, amount) in enumerate(zip(dates, parts)):
+        out.append(_card(rng, when, "TABBY FZ LLC DUBAI AE", amount, "AED"))
+        email_at = when + timedelta(seconds=rng.randint(1, 8))
+        if i == 0:
+            body = (f" Thanks for choosing Tabby, Alex.\nYour order from {store} is confirmed and the first payment "
+                    f"was successful.\n\n| | {store} |\n\n| | Paid today |  {_fmt(amount)} |\n| | |\n{sched}\n"
+                    f"| Date of purchase | {when:%-d %b, %Y} |\n| Order number | #{order[:21]} |\n"
+                    f"| Total order amount |  {_fmt(total)} |\n\n| Credit summary |\n"
+                    f"| Total to be repaid by borrower |  {_fmt(total - amount)} |")
+            out.append((email_at, TABBY, f"Successful purchase at {store}", body))
+        elif i < n - 1:
+            due = sum(parts[i + 1:])
+            body = (f" Thanks for your payment\nHere’s your receipt for {store}.\nOrder# {order}\n\n"
+                    f"| Paid today |  {_fmt(amount)} |\n\n| Total due |  {_fmt(due)} |\n"
+                    f"| Next payment | {dates[i + 1]:%-d %b, %Y} |")
+            out.append((email_at, TABBY, "Thanks! Here’s your Tabby payment confirmation.", body))
+        else:
+            body = (f" Thanks for the last payment\nYou've made all your payments from {store} successfully. "
+                    f"Here's your receipt.\nOrder# {order}\n\n| Paid today |  {_fmt(amount)} |\n\n"
+                    f"| Total paid |  {_fmt(total)} |")
+            out.append((email_at, TABBY, "Thanks! Here’s your Tabby payment confirmation.", body))
+    return out
+
+
 def _month_events(rng: random.Random, year: int, month: int, scale: float, travel: bool) -> list[tuple]:
     days = calendar.monthrange(year, month)[1]
     out: list[tuple] = []
@@ -122,6 +158,11 @@ def _month_events(rng: random.Random, year: int, month: int, scale: float, trave
     if travel:
         out.append(_card(rng, _stamp(rng, year, month, rng.randint(2, 20), (10, 22)),
                          "EMIRATES DUBAI AE", round(rng.uniform(900, 1400), 2), "AED"))
+
+    if rng.random() < 0.6:
+        store, lo, hi = rng.choice(_TABBY_STORES)
+        out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, min(days, 26)), (11, 21)), store,
+                            round(rng.uniform(lo, hi), 2))
 
     out.append((_stamp(rng, year, month, 1, (7, 8)), ALERTS, "Transaction Notification",
                 f"Amount of AED {_fmt(SALARY)} has been credited to your Mashreq account no. "

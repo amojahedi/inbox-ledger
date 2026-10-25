@@ -2,6 +2,7 @@ import pytest
 
 from inbox_ledger.config import DEFAULTS
 from inbox_ledger.parsing import load_banks
+from inbox_ledger.paylater import load_providers
 from inbox_ledger.store import Categories, Store
 
 
@@ -13,4 +14,4 @@ def banks():
 @pytest.fixture
 def store(tmp_path):
     return Store(tmp_path / "ledger.db", load_banks(DEFAULTS / "banks"),
-                 Categories.load(DEFAULTS / "categories.yaml"))
+                 Categories.load(DEFAULTS / "categories.yaml"), load_providers(DEFAULTS / "paylater"))

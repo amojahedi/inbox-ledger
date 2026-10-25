@@ -88,3 +88,11 @@ def test_amount_without_leading_zero(banks):
     from .helpers import card
     t = parse_message(card("c1", "PARKING METER +97143000000 AE", amount=".50"), banks)
     assert t and t.amount == 0.5
+
+
+def test_account_debit_with_space_after_colon(banks):
+    from inbox_ledger.parsing import RawMessage
+    body = ("Your AC No: XXXXXXXX3390 is debited with AED 120.00 for Online Local Funds Transfer "
+            "(Charges & VAT incl. if applicable). Login to Online Banking for details.")
+    t = parse_message(RawMessage("d9", "2026-10-01T10:00:00Z", "MashreqAlerts@mashreq.com", "Transaction Notification", body), banks)
+    assert t and t.account == "3390" and t.amount == 120.0 and t.merchant_raw.startswith("Online Local Funds Transfer")

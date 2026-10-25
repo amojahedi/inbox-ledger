@@ -13,7 +13,7 @@ def cmd_sync(args):
     gmail = Gmail(d / "credentials.json", d / "token.json")
     after = None if args.full else store.latest_message_date()
     total = 0
-    for bank in store.banks:
+    for bank in [*store.banks, *store.providers]:
         if bank.gmail_query:
             msgs = list(gmail.fetch(bank.gmail_query, after=after, limit=args.limit))
             total += store.add_messages(msgs)

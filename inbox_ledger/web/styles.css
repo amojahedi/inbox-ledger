@@ -198,6 +198,20 @@ main { max-width: 1080px; margin: 0 auto; padding: 0 22px 80px; }
 .stat strong { display: block; margin-top: 4px; font-size: 26px; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
 .stat small { color: var(--text-3); font-size: 13px; }
 
+/* ---------- Pay later ---------- */
+.pl-top { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 18px; }
+.pl-top p { margin: 0; color: var(--text-2); font-size: 13px; font-weight: 500; }
+.pl-top strong { display: block; margin-top: 2px; font-size: 28px; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.pl-top small { color: var(--text-3); font-size: 13px; }
+.pl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.pl-cols h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .02em; }
+.pl-list { list-style: none; margin: 0; padding: 0; }
+.pl-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 15px; }
+.pl-list li + li { border-top: 0.5px solid var(--separator); }
+.pl-list small { display: block; color: var(--text-3); font-size: 12px; }
+.pl-list .amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 640px) { .pl-cols, .pl-top { grid-template-columns: 1fr; gap: 14px; } }
+
 /* ---------- Charts ---------- */
 .chart { position: relative; height: 220px; }
 .chart.short { height: 150px; }

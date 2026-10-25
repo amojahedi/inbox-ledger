@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from .parsing import load_banks
+from .paylater import load_providers
 from .store import Categories, Store
 
 PACKAGE = Path(__file__).parent
@@ -17,4 +18,5 @@ def open_store(db_name: str = "ledger.db") -> Store:
     d = data_dir()
     banks = load_banks(DEFAULTS / "banks", d / "banks")
     categories = Categories.load(DEFAULTS / "categories.yaml", d / "categories.yaml")
-    return Store(d / db_name, banks, categories)
+    providers = load_providers(DEFAULTS / "paylater", d / "paylater")
+    return Store(d / db_name, banks, categories, providers)

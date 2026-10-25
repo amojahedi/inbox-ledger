@@ -7,9 +7,14 @@ NOW = datetime(2026, 10, 25, 9, 0, tzinfo=timezone.utc)
 
 
 def test_every_demo_message_parses(banks):
+    from inbox_ledger.config import DEFAULTS
+    from inbox_ledger.paylater import load_providers, parse_event
+    providers = load_providers(DEFAULTS / "paylater")
     msgs = generate(months=6, now=NOW)
-    assert len(msgs) > 200
-    assert all(parse_message(m, banks) for m in msgs)
+    bank_msgs = [m for m in msgs if "tabby" not in m.sender]
+    assert len(bank_msgs) > 200 and len(msgs) > len(bank_msgs)
+    assert all(parse_message(m, banks) for m in bank_msgs)
+    assert all(parse_event(m, providers) for m in msgs if "tabby" in m.sender)
     assert len({m.id for m in msgs}) == len(msgs)
 
 
@@ -21,7 +26,7 @@ def test_demo_is_deterministic_and_ends_now():
 
 
 def test_every_transfer_has_a_mirror(banks):
-    txns = [parse_message(m, banks) for m in generate(now=NOW)]
+    txns = [parse_message(m, banks) for m in generate(now=NOW) if "tabby" not in m.sender]
     transfers = [t for t in txns if t.kind == "transfer"]
     assert transfers and len(find_mirrors(txns, banks)) == len(transfers)
     assert {t.direction for t in transfers} == {"out", "internal"}

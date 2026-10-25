@@ -31,7 +31,7 @@ patterns:
   - name: account_debit_short
     kind: account_debit
     direction: out
-    regex: 'Your AC No:X*(?P<last4>\d{4}) is debited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) for (?P<merchant>.+?)\. Login'
+    regex: 'Your AC No:\s*X*(?P<last4>\d{4}) is debited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2}) for (?P<merchant>.+?)\. Login'
 
   - name: account_credit
     kind: account_credit
@@ -41,7 +41,7 @@ patterns:
   - name: account_credit_short
     kind: account_credit
     direction: in
-    regex: 'Your AC No:X*(?P<last4>\d{4}) is credited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2})(?: for (?P<merchant>.+?))?\.'
+    regex: 'Your AC No:\s*X*(?P<last4>\d{4}) is credited with (?P<currency>[A-Z]{3}) (?P<amount>[\d,]*\.\d{2})(?: for (?P<merchant>.+?))?\.'
 
   - name: transfer
     kind: transfer

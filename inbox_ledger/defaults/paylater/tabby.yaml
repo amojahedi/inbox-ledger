@@ -1,0 +1,57 @@
+# Tabby (buy now, pay later). Tabby charges your card once per instalment, so the bank
+# alert only says "Tabby". Tabby's own emails name the store and order, and arrive within
+# seconds of the charge — Ledger pairs them by amount and time, then treats the charge as
+# a purchase from the real store.
+#
+# Field patterns run against the email body; each must capture a group named `v`.
+# Store patterns are tried in order; the first match wins.
+
+name: Tabby
+senders: ['(^|@)notifications@tabby\.ai$', 'tabby\.ai$']
+card_merchant: tabby          # bank-alert merchant that these emails explain
+match_minutes: 30             # how far apart the charge and the email may be
+gmail_query: 'from:notifications@tabby.ai (subject:"Successful purchase" OR subject:"payment confirmation" OR subject:"payment receipt" OR subject:refund OR subject:"Payment schedule update") -subject:"Tabby Card"'
+
+amount: '[\s|]*(?:AED)?\s*(?P<v>[\d,]*\.\d{2})'
+
+events:
+  - kind: purchase            # new order; first instalment paid today
+    when: 'Successful purchase|first payment was successful|received your first payment'
+    store: ['order from (?P<v>.+?) is confirmed', 'Your (?P<v>.+?) purchase was successful']
+    fields:
+      paid: 'Paid today{amount}'
+      order: 'Order number[\s|]*#?(?P<v>[\w-]+)'
+      total: 'Total order amount{amount}'
+      remaining: 'Total to be repaid by borrower{amount}'
+    count_instalments: '\|\s*\d{1,2} \w{3}, \d{4}\s*\|\s*(?:AED)?\s*[\d,]*\.\d{2}'   # dated schedule rows; + "Paid today"
+
+  - kind: final               # last instalment of an order
+    when: "Thanks for the last payment|made all your payments"
+    store: ["made all your payments from (?P<v>.+?) successfully"]
+    fields:
+      paid: 'Paid today{amount}'
+      order: 'Order#\s*(?P<v>[\w-]+)'
+      total: 'Total paid{amount}'
+
+  - kind: payment             # one instalment of one order
+    when: 'Here.s your receipt for'
+    store: ['receipt for (?P<v>.+?)\.\s']
+    fields:
+      paid: 'Paid today{amount}'
+      order: 'Order#\s*(?P<v>[\w-]+)'
+      remaining: 'Total due{amount}'
+      next_due: 'Next payment[\s|]*(?P<v>\d{1,2} \w{3}, \d{4})'
+
+  - kind: consolidated        # several instalments in one charge; no store
+    when: 'consolidated receipt'
+    fields:
+      paid: 'Paid today{amount}'
+
+  - kind: refund
+    when: 'refund'
+    store: ['refunded your order from (?P<v>.+?)\.', 'payments for (?P<v>.+?) have been updated']
+    fields:
+      refunded: 'Refunded(?: to your card)?{amount}'
+      full_refund: '(?P<v>Your order was refunded|refunded your order from)'
+      order: 'Order number[\s|]*#?(?P<v>[\w-]+)'
+      total: 'Total order amount{amount}'

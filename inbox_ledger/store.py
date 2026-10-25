@@ -15,6 +15,7 @@ from typing import Iterable, Optional
 
 import yaml
 
+from . import paylater
 from .parsing import BankProfile, RawMessage, Transaction, find_mirrors, parse_message
 
 SCHEMA = """
@@ -39,6 +40,10 @@ CREATE TABLE IF NOT EXISTS overrides (
 );
 CREATE TABLE IF NOT EXISTS custom_categories (
   key TEXT PRIMARY KEY, name TEXT, color TEXT, created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS paylater_events (
+  message_id TEXT PRIMARY KEY, provider TEXT, kind TEXT, at TEXT, store TEXT, order_id TEXT, paid REAL,
+  remaining REAL, total REAL, refunded REAL, instalments INTEGER, next_due TEXT, full_refund INTEGER, tx_id TEXT
 );
 CREATE TABLE IF NOT EXISTS budgets (
   category TEXT PRIMARY KEY, monthly REAL
@@ -89,7 +94,8 @@ class Categories:
 
 
 class Store:
-    def __init__(self, path: Path, banks: list[BankProfile], categories: Categories):
+    def __init__(self, path: Path, banks: list[BankProfile], categories: Categories,
+                 providers: Optional[list[paylater.Provider]] = None):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
@@ -97,6 +103,7 @@ class Store:
         self.db.executescript(SCHEMA)
         self.banks = banks
         self.categories = categories
+        self.providers = providers or []
         for r in self.db.execute("SELECT * FROM custom_categories ORDER BY created_at"):
             if r["key"] not in categories.by_key:
                 categories.add(r["key"], r["name"], r["color"])
@@ -132,7 +139,11 @@ class Store:
     def rebuild(self) -> dict:
         """Re-parse every stored email and re-apply rules and overrides."""
         msgs = [RawMessage(**dict(r)) for r in self.db.execute("SELECT * FROM raw_messages")]
-        txns = [t for t in (parse_message(m, self.banks) for m in msgs) if t]
+        pl_msgs = [m for m in msgs if any(p.handles(m.sender) for p in self.providers)]
+        events = [e for e in (paylater.parse_event(m, self.providers) for m in pl_msgs) if e]
+        pl_ids = {m.id for m in pl_msgs}
+        txns = [t for t in (parse_message(m, self.banks) for m in msgs if m.id not in pl_ids) if t]
+        pairs = paylater.attach(txns, events, self.providers, {b.name: b.timezone for b in self.banks})
         mirrors = find_mirrors(txns, self.banks)
         rules = {(r["merchant_key"], r["amount"]): r for r in self.db.execute("SELECT * FROM merchant_rules")}
         overrides = {r["transaction_id"]: r for r in self.db.execute("SELECT * FROM overrides")}
@@ -158,8 +169,16 @@ class Store:
             self.db.execute("DELETE FROM transactions")
             self.db.executemany(
                 f"INSERT INTO transactions VALUES ({','.join('?' * 22)})", rows)
-        return {"messages": len(msgs), "transactions": len(txns), "mirrors": len(mirrors),
-                "unparsed": len(msgs) - len(txns)}
+            self.db.execute("DELETE FROM paylater_events")
+            self.db.executemany(
+                f"INSERT INTO paylater_events VALUES ({','.join('?' * 14)})",
+                [(e.message_id, e.provider, e.kind, e.at.isoformat(), e.store, e.order, e.paid, e.remaining, e.total,
+                  e.refunded, e.instalments, e.next_due, int(e.full_refund), pairs.get(e.message_id)) for e in events])
+        out = {"messages": len(msgs), "transactions": len(txns), "mirrors": len(mirrors),
+               "unparsed": len(msgs) - len(txns) - len(events)}
+        if self.providers:
+            out["paylater"] = {"emails": len(events), "matched": len(pairs)}
+        return out
 
     def _categorize(self, t: Transaction, rule) -> tuple[str, str, str]:
         direction = t.direction
@@ -260,7 +279,8 @@ class Store:
     _VISIBLE = "mirror_of IS NULL"
 
     def transactions(self, month: Optional[str] = None, category: Optional[str] = None,
-                     q: Optional[str] = None, internal: str = "show", limit: int = 500) -> list[dict]:
+                     q: Optional[str] = None, internal: str = "show", via: Optional[str] = None,
+                     limit: int = 500) -> list[dict]:
         """internal: "show" everything, "hide" or "only" moves between your own accounts."""
         sql, args = f"SELECT * FROM transactions WHERE {self._VISIBLE}", []
         if internal == "hide":
@@ -271,12 +291,43 @@ class Store:
             sql += " AND month=?"; args.append(month)
         if category:
             sql += " AND category=?"; args.append(category)
+        if via:
+            sql += " AND lower(json_extract(extra, '$.via'))=lower(?)"; args.append(via)
         if q:
             sql += " AND (merchant LIKE ? OR counterparty LIKE ? OR note LIKE ?)"; args += [f"%{q}%"] * 3
         sql += " ORDER BY occurred_at DESC LIMIT ?"; args.append(limit)
         out = []
         for r in self.db.execute(sql, args):
             d = dict(r); d["extra"] = json.loads(d["extra"] or "{}"); out.append(d)
+        return out
+
+    def _paylater(self, month: str) -> list[dict]:
+        out = []
+        for p in self.providers:
+            rows = [dict(r) for r in self.db.execute(
+                f"SELECT merchant, category, amount_base FROM transactions WHERE month=? AND {self._VISIBLE}"
+                " AND direction='out' AND json_extract(extra, '$.via')=?", (month, p.name))]
+            events = [paylater.Event(r["message_id"], r["provider"], r["kind"], datetime.fromisoformat(r["at"]),
+                                     r["store"] or "", r["order_id"] or "", r["paid"] or 0.0, r["remaining"],
+                                     r["total"], r["refunded"], r["instalments"], r["next_due"] or "",
+                                     bool(r["full_refund"]))
+                      for r in self.db.execute("SELECT * FROM paylater_events WHERE provider=?", (p.name,))]
+            if not rows and not events:
+                continue
+            stores: dict[str, float] = {}
+            for r in rows:
+                stores[r["merchant"]] = stores.get(r["merchant"], 0) + r["amount_base"]
+            orders = paylater.open_orders(events, _month_end_utc(month))
+            out.append({
+                "provider": p.name,
+                "paid": round(sum(r["amount_base"] for r in rows), 2),
+                "payments": len(rows),
+                "stores": sorted(({"store": k, "total": round(v, 2)} for k, v in stores.items()),
+                                 key=lambda x: -x["total"]),
+                "owed": round(sum(o["remaining"] for o in orders), 2),
+                "open_orders": [{"store": o["store"], "remaining": o["remaining"], "next_due": o["next_due"],
+                                 "instalments": o["instalments"]} for o in sorted(orders, key=lambda o: -o["remaining"])],
+            })
         return out
 
     def months(self) -> list[dict]:
@@ -309,9 +360,17 @@ class Store:
         biggest = q(f"SELECT merchant, category, amount_base, occurred_at FROM transactions"
                     f" WHERE month=? AND direction='out' AND {v} ORDER BY amount_base DESC LIMIT 1")
         budgets = {r["category"]: r["monthly"] for r in self.db.execute("SELECT * FROM budgets")}
+        pay_later = self._paylater(month)
         return {"month": month, "currency": self.categories.base_currency, **tot, "previous_spent": prev,
                 "by_category": by_cat, "by_day": by_day, "top_merchants": merchants,
-                "by_hour": by_hour, "biggest": biggest[0] if biggest else None, "budgets": budgets}
+                "by_hour": by_hour, "biggest": biggest[0] if biggest else None, "budgets": budgets,
+                "pay_later": pay_later}
+
+
+def _month_end_utc(month: str) -> datetime:
+    from datetime import timezone
+    y, m = map(int, month.split("-"))
+    return datetime(y + (m == 12), m % 12 + 1, 1, tzinfo=timezone.utc)
 
 
 def _prev_month(month: str) -> str:
