@@ -1,0 +1,160 @@
+# Merchant brands.
+#
+# Ledger uses these to tint a merchant's round icon with the brand's colour and,
+# only if you turn on "Merchant logos" in Settings, to download the brand's icon
+# from the brand's OWN website (its apple-touch-icon or favicon). No third-party
+# icon service is ever used. Logos are cached in <data dir>/logos/.
+#
+#   key     stable id, also accepted by GET /api/logo/{key}
+#   domain  the brand's own website
+#   color   brand colour for the monogram when there is no logo
+#   match   whole-word keywords matched against the normalized merchant name;
+#           prefix with "=" to require the whole name (e.g. "=du"). Longest match wins.
+#   icon    optional icon URL or path on `domain`, when the site hides its icon
+#
+# Add your own in <data dir>/brands.yaml (same format; entries with the same key win).
+
+brands:
+  # ---- Rides, delivery and quick commerce ----
+  - {key: careem, name: Careem, domain: careem.com, color: "#00B140", match: [careem, hala taxi]}
+  - {key: talabat, name: Talabat, domain: talabat.com, color: "#FF5A00", match: [talabat]}
+  - {key: deliveroo, name: Deliveroo, domain: deliveroo.ae, color: "#00CCBC", match: [deliveroo]}
+  - {key: zomato, name: Zomato, domain: zomato.com, color: "#E23744", match: [zomato]}
+  - {key: instashop, name: InstaShop, domain: instashop.com, color: "#16A34A", match: [instashop]}
+  - {key: kibsons, name: Kibsons, domain: kibsons.com, color: "#5B8C2A", match: [kibsons]}
+  - {key: uber, name: Uber, domain: uber.com, color: "#000000", match: [uber, ubr, uber eats]}
+  - {key: bolt, name: Bolt, domain: bolt.eu, color: "#34D186", match: [bolt]}
+  - {key: yango, name: Yango, domain: yango.com, color: "#FC3F1D", match: [yango]}
+
+  # ---- Groceries ----
+  - {key: carrefour, name: Carrefour, domain: carrefouruae.com, color: "#004E9F", match: [carrefour, mafcarrefour]}
+  - {key: spinneys, name: Spinneys, domain: spinneys.com, color: "#00573F", match: [spinneys]}
+  - {key: waitrose, name: Waitrose, domain: waitrose.ae, color: "#5C8A2E", match: [waitrose]}
+  - {key: lulu, name: LuLu, domain: luluhypermarket.com, color: "#E31E24", match: [lulu, lulu hypermarket]}
+  - {key: union-coop, name: Union Coop, domain: unioncoop.ae, color: "#D7282F", match: [union coop, union cooperative]}
+  - {key: choithrams, name: Choithrams, domain: choithrams.com, color: "#E2231A", match: [choithrams]}
+  - {key: lidl, name: Lidl, domain: lidl.com, color: "#0050AA", match: [lidl]}
+  - {key: aldi, name: Aldi, domain: aldi.com, color: "#00005F", match: [aldi]}
+  - {key: tesco, name: Tesco, domain: tesco.com, color: "#00539F", match: [tesco]}
+  - {key: whole-foods, name: Whole Foods, domain: wholefoodsmarket.com, color: "#00674B", match: [whole foods, wholefds]}
+
+  # ---- Shopping ----
+  - {key: amazon, name: Amazon, domain: amazon.com, color: "#FF9900", match: [amazon, amzn, amzn mktp, amazon.ae, amazon prime]}
+  - {key: noon, name: Noon, domain: noon.com, color: "#FEEE00", match: [noon, noon.com, noon food, noon minutes]}
+  - {key: ikea, name: IKEA, domain: ikea.com, color: "#0058A3", match: [ikea]}
+  - {key: sharaf-dg, name: Sharaf DG, domain: sharafdg.com, color: "#E30613", match: [sharaf dg, sharaf d g]}
+  - {key: virgin-megastore, name: Virgin Megastore, domain: virginmegastore.ae, color: "#E10A0A", match: [virgin megastore]}
+  - {key: apple, name: Apple, domain: apple.com, color: "#1D1D1F", match: [apple, apple.com, apple store, itunes, icloud]}
+  - {key: adidas, name: Adidas, domain: adidas.com, color: "#000000", match: [adidas]}
+  - {key: nike, name: Nike, domain: nike.com, color: "#111111", match: [nike]}
+  - {key: ounass, name: Ounass, domain: ounass.ae, color: "#000000", match: [ounass]}
+  - {key: namshi, name: Namshi, domain: namshi.com, color: "#1A1A1A", match: [namshi]}
+  - {key: 6thstreet, name: 6th Street, domain: 6thstreet.com, color: "#000000", match: [6th street, 6thstreet]}
+  - {key: hm, name: H&M, domain: hm.com, color: "#E50010", match: [h&m, h & m, hennes]}
+  - {key: zara, name: Zara, domain: zara.com, color: "#000000", match: [zara]}
+  - {key: shein, name: SHEIN, domain: shein.com, color: "#000000", match: [shein]}
+  - {key: uniqlo, name: Uniqlo, domain: uniqlo.com, color: "#ED1D24", match: [uniqlo]}
+  - {key: centrepoint, name: Centrepoint, domain: centrepointstores.com, color: "#0086C9", match: [centrepoint]}
+  - {key: max-fashion, name: Max, domain: maxfashion.com, color: "#0072BC", match: [max fashion]}
+  - {key: home-centre, name: Home Centre, domain: homecentre.com, color: "#E31837", match: [home centre]}
+  - {key: ace, name: ACE, domain: aceuae.com, color: "#D40029", match: [ace hardware]}
+  - {key: decathlon, name: Decathlon, domain: decathlon.ae, color: "#0082C3", match: [decathlon]}
+  - {key: sun-and-sand, name: Sun & Sand Sports, domain: sssports.com, color: "#E31E24", match: [sun & sand, sun and sand]}
+  - {key: level-shoes, name: Level Shoes, domain: levelshoes.com, color: "#000000", match: [level shoes]}
+  - {key: brands-for-less, name: Brands For Less, domain: brandsforless.com, color: "#E4002B", match: [brands for less]}
+  - {key: gymshark, name: Gymshark, domain: gymshark.com, color: "#000000", match: [gymshark]}
+  - {key: jumbo, name: Jumbo, domain: jumbo.ae, color: "#E31E24", match: [jumbo, jumbo electronics]}
+  - {key: marks-and-spencer, name: Marks & Spencer, domain: marksandspencer.com, color: "#0F7C3F", match: [marks&spencer, marks & spencer, marks and spencer, m&s]}
+  - {key: bloomingdales, name: Bloomingdale's, domain: bloomingdales.com, color: "#000000", match: [bloomingdales, bloomingdale's]}
+  - {key: harvey-nichols, name: Harvey Nichols, domain: harveynichols.com, color: "#000000", match: [harvey nichols]}
+  - {key: damas, name: Damas, domain: damasjewellery.com, color: "#8A6D3B", match: [damas]}
+  - {key: ebay, name: eBay, domain: ebay.com, color: "#0064D2", match: [ebay]}
+  - {key: aliexpress, name: AliExpress, domain: aliexpress.com, color: "#E62E04", match: [aliexpress]}
+  - {key: temu, name: Temu, domain: temu.com, color: "#FB7701", match: [temu]}
+
+  # ---- Coffee and food ----
+  - {key: starbucks, name: Starbucks, domain: starbucks.com, color: "#00704A", match: [starbucks]}
+  - {key: arabica, name: "%Arabica", domain: arabica.coffee, color: "#1A1A1A", match: [arabica, "% arabica"]}
+  - {key: costa, name: Costa Coffee, domain: costa.co.uk, color: "#6D1F37", match: [costa, costa coffee]}
+  - {key: tim-hortons, name: Tim Hortons, domain: timhortons.com, color: "#C8102E", match: [tim hortons]}
+  - {key: caribou, name: Caribou Coffee, domain: cariboucoffee.com, color: "#5B3427", match: [caribou]}
+  - {key: mcdonalds, name: McDonald's, domain: mcdonalds.com, color: "#FFC72C", match: [mcdonald, mcdonalds, mcdonald's]}
+  - {key: kfc, name: KFC, domain: kfc.com, color: "#E4002B", match: [kfc]}
+  - {key: burger-king, name: Burger King, domain: bk.com, color: "#D62300", match: [burger king]}
+  - {key: five-guys, name: Five Guys, domain: fiveguys.com, color: "#D21033", match: [five guys]}
+  - {key: shake-shack, name: Shake Shack, domain: shakeshack.com, color: "#1F1F1F", match: [shake shack]}
+  - {key: pizza-hut, name: Pizza Hut, domain: pizzahut.com, color: "#EE3124", match: [pizza hut]}
+  - {key: dominos, name: Domino's, domain: dominos.com, color: "#006491", match: [dominos, domino's]}
+  - {key: subway, name: Subway, domain: subway.com, color: "#008C15", match: [subway]}
+  - {key: calo, name: Calo, domain: calo.app, color: "#1DB954", match: [calo]}
+
+  # ---- Subscriptions and software ----
+  - {key: netflix, name: Netflix, domain: netflix.com, color: "#E50914", match: [netflix, netflix.com]}
+  - {key: spotify, name: Spotify, domain: spotify.com, color: "#1DB954", match: [spotify]}
+  - {key: openai, name: OpenAI, domain: openai.com, color: "#000000", match: [openai, chatgpt]}
+  - {key: anthropic, name: Anthropic, domain: anthropic.com, color: "#D97757", match: [anthropic, claude.ai]}
+  - {key: google, name: Google, domain: google.com, color: "#4285F4", match: [google]}
+  - {key: youtube, name: YouTube, domain: youtube.com, color: "#FF0000", match: [youtube, google youtube]}
+  - {key: disney-plus, name: Disney+, domain: disneyplus.com, color: "#113CCF", match: [disney, disneyplus, disney plus]}
+  - {key: osn, name: OSN+, domain: osnplus.com, color: "#000000", match: [osn, osn+, osnplus]}
+  - {key: shahid, name: Shahid, domain: shahid.mbc.net, color: "#00B4AE", match: [shahid]}
+  - {key: audible, name: Audible, domain: audible.com, color: "#F8991C", match: [audible]}
+  - {key: microsoft, name: Microsoft, domain: microsoft.com, color: "#00A4EF", match: [microsoft, msft]}
+  - {key: adobe, name: Adobe, domain: adobe.com, color: "#FA0F00", match: [adobe]}
+  - {key: github, name: GitHub, domain: github.com, color: "#181717", match: [github]}
+  - {key: notion, name: Notion, domain: notion.so, color: "#000000", match: [notion]}
+  - {key: figma, name: Figma, domain: figma.com, color: "#F24E1E", match: [figma]}
+  - {key: canva, name: Canva, domain: canva.com, color: "#00C4CC", match: [canva]}
+  - {key: linkedin, name: LinkedIn, domain: linkedin.com, color: "#0A66C2", match: [linkedin]}
+  - {key: playstation, name: PlayStation, domain: playstation.com, color: "#003791", match: [playstation, sony playstation, psn]}
+  - {key: steam, name: Steam, domain: steampowered.com, color: "#1B2838", match: [steam, steampowered]}
+  - {key: xbox, name: Xbox, domain: xbox.com, color: "#107C10", match: [xbox]}
+
+  # ---- Getting around ----
+  - {key: salik, name: Salik, domain: salik.ae, color: "#00A651", match: [salik]}
+  - {key: rta, name: RTA, domain: rta.ae, color: "#E31E24", match: [rta, nol, dubai metro]}
+  - {key: enoc, name: ENOC, domain: enoc.com, color: "#0063AF", match: [enoc, eppco]}
+  - {key: adnoc, name: ADNOC, domain: adnoc.ae, color: "#0047BA", match: [adnoc]}
+  - {key: emarat, name: Emarat, domain: emarat.ae, color: "#E31E24", match: [emarat]}
+
+  # ---- Bills ----
+  - {key: dewa, name: DEWA, domain: dewa.gov.ae, color: "#007A3D", match: [dewa, dubai electricity]}
+  - {key: du, name: du, domain: du.ae, color: "#00A9E0", match: ["=du", du telecom, emirates integrated telecom]}
+  - {key: etisalat, name: e&, domain: eand.com, color: "#E00800", match: [etisalat, "e&", eand]}
+  - {key: virgin-mobile, name: Virgin Mobile, domain: virginmobile.ae, color: "#E10A0A", match: [virgin mobile]}
+
+  # ---- Travel ----
+  - {key: emirates, name: Emirates, domain: emirates.com, color: "#D71921", match: ["=emirates", emirates airline, emirates.com, emirates skywards]}
+  - {key: flydubai, name: flydubai, domain: flydubai.com, color: "#1F3E77", match: [flydubai, fly dubai]}
+  - {key: air-arabia, name: Air Arabia, domain: airarabia.com, color: "#E30613", match: [air arabia]}
+  - {key: etihad, name: Etihad, domain: etihad.com, color: "#BD8B13", match: [etihad]}
+  - {key: booking, name: Booking.com, domain: booking.com, color: "#003580", match: [booking.com, booking com]}
+  - {key: airbnb, name: Airbnb, domain: airbnb.com, color: "#FF5A5F", match: [airbnb]}
+  - {key: agoda, name: Agoda, domain: agoda.com, color: "#5392F9", match: [agoda]}
+  - {key: expedia, name: Expedia, domain: expedia.com, color: "#1E243A", match: [expedia]}
+  - {key: marriott, name: Marriott, domain: marriott.com, color: "#A4123F", match: [marriott]}
+  - {key: hilton, name: Hilton, domain: hilton.com, color: "#104C97", match: [hilton]}
+  - {key: almosafer, name: Almosafer, domain: almosafer.com, color: "#00B0B9", match: [almosafer]}
+  - {key: wego, name: Wego, domain: wego.com, color: "#44B50C", match: [wego]}
+
+  # ---- Pay later and money ----
+  - {key: tabby, name: Tabby, domain: tabby.ai, color: "#3BFFC1", match: [tabby]}
+  - {key: tamara, name: Tamara, domain: tamara.co, color: "#F5A3C7", match: [tamara]}
+  - {key: western-union, name: Western Union, domain: westernunion.com, color: "#FFDD00", match: [western union]}
+  - {key: al-ansari, name: Al Ansari Exchange, domain: alansariexchange.com, color: "#00539B", match: [al ansari, al ansari exchange]}
+  - {key: botim, name: Botim, domain: botim.me, color: "#0091FF", match: [botim]}
+  - {key: ziina, name: Ziina, domain: ziina.com, color: "#6D28D9", match: [ziina]}
+
+  # ---- Fun ----
+  - {key: vox, name: VOX Cinemas, domain: voxcinemas.com, color: "#E1251B", match: [vox, vox cinemas]}
+  - {key: reel-cinemas, name: Reel Cinemas, domain: reelcinemas.ae, color: "#C8102E", match: [reel cinemas]}
+  - {key: novo, name: Novo Cinemas, domain: novocinemas.com, color: "#5C2D91", match: [novo cinemas]}
+
+  # ---- Health and fitness ----
+  - {key: life-pharmacy, name: Life Pharmacy, domain: lifepharmacy.com, color: "#E4003A", match: [life pharmacy]}
+  - {key: aster, name: Aster, domain: asterpharmacy.ae, color: "#00539F", match: [aster, aster pharmacy]}
+  - {key: boots, name: Boots, domain: boots.com, color: "#05054B", match: [boots]}
+  - {key: fitness-first, name: Fitness First, domain: fitnessfirstme.com, color: "#D71920", match: [fitness first]}
+  - {key: golds-gym, name: Gold's Gym, domain: goldsgym.com, color: "#FFCC00", match: [gold's gym, golds gym]}
+  - {key: iherb, name: iHerb, domain: iherb.com, color: "#458500", match: [iherb]}
+  - {key: mediclinic, name: Mediclinic, domain: mediclinic.ae, color: "#00558C", match: [mediclinic]}
