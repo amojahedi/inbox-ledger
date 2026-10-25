@@ -52,10 +52,12 @@ class Pattern:
     kind: str
     direction: str
     regex: re.Pattern
-    when_format: Optional[str] = None
+    when_format: Optional[str | list] = None
     when_regex: Optional[re.Pattern] = None
     transfer_directions: dict = field(default_factory=dict)
     failed_statuses: list = field(default_factory=list)
+    subject_regex: Optional[re.Pattern] = None  # extra named groups taken from the subject line
+    label: str = ""  # merchant shown when the alert names none
 
 
 @dataclass
@@ -66,6 +68,8 @@ class BankProfile:
     patterns: list[Pattern]
     gmail_query: str = ""
     dedupe: dict = field(default_factory=dict)
+    status: str = ""  # verified | beta (informational)
+    fallback: bool = False  # tried only after every bank-specific profile
 
     def handles(self, sender: str) -> bool:
         return any(s.search(sender.lower()) for s in self.senders)
@@ -83,6 +87,8 @@ def load_bank(path: Path) -> BankProfile:
             when_regex=re.compile(p["when_regex"]) if p.get("when_regex") else None,
             transfer_directions=p.get("transfer_directions", {}),
             failed_statuses=[s.lower() for s in p.get("failed_statuses", [])],
+            subject_regex=re.compile(p["subject_regex"]) if p.get("subject_regex") else None,
+            label=p.get("label", ""),
         )
         for p in spec["patterns"]
     ]
@@ -93,6 +99,8 @@ def load_bank(path: Path) -> BankProfile:
         patterns=patterns,
         gmail_query=spec.get("gmail_query", ""),
         dedupe=spec.get("dedupe", {}),
+        status=str(spec.get("status", "")),
+        fallback=bool(spec.get("fallback", False)),
     )
 
 
@@ -103,11 +111,30 @@ def load_banks(*dirs: Path) -> list[BankProfile]:
         if d and d.is_dir():
             for f in sorted(d.glob("*.y*ml")):
                 files[f.stem] = f
-    return [load_bank(f) for f in files.values()]
+    return sorted((load_bank(f) for f in files.values()), key=lambda b: b.fallback)  # stable: fallbacks last
 
 
 def _amount(text: str) -> float:
     return float(text.replace(",", ""))
+
+
+# Tried after a pattern's own when_format, so most profiles can omit it.
+COMMON_WHEN = [
+    f"{d}{t}" for d in ("%d-%b-%Y", "%d/%b/%Y", "%d %b %Y", "%d-%b-%y", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y",
+                        "%Y-%m-%d")
+    for t in (" %I:%M:%S %p", " %I:%M %p", " %H:%M:%S", " %H:%M", "")
+]
+
+
+def _parse_when(when: str, formats) -> Optional[datetime]:
+    when = re.sub(r"(\d)\s*([AaPp][Mm])", r"\1 \2", re.sub(r"\s*,\s*|\s+", " ", when)).strip()
+    declared = [formats] if isinstance(formats, str) else list(formats or [])
+    for fmt in declared + COMMON_WHEN:
+        try:
+            return datetime.strptime(when, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def _local_time(msg: RawMessage, bank: BankProfile, pattern: Pattern, groups: dict) -> str:
@@ -115,12 +142,9 @@ def _local_time(msg: RawMessage, bank: BankProfile, pattern: Pattern, groups: di
     if not when and pattern.when_regex:
         m = pattern.when_regex.search(msg.body)
         when = m.group("when") if m else None
-    if when and pattern.when_format:
-        try:
-            return datetime.strptime(when.title() if "%b" in pattern.when_format else when,
-                                     pattern.when_format).isoformat(timespec="minutes")
-        except ValueError:
-            pass
+    parsed = _parse_when(when, pattern.when_format) if when else None
+    if parsed:
+        return parsed.isoformat(timespec="minutes")
     sent = datetime.fromisoformat(msg.date.replace("Z", "+00:00"))
     if sent.tzinfo is None:
         sent = sent.replace(tzinfo=timezone.utc)
@@ -133,7 +157,7 @@ def _clean(text: Optional[str]) -> str:
 
 def parse_message(msg: RawMessage, banks: Iterable[BankProfile]) -> Optional[Transaction]:
     body = _clean(msg.body)
-    for bank in banks:
+    for bank in sorted(banks, key=lambda b: b.fallback):  # bank-specific profiles win over fallbacks
         if not bank.handles(msg.sender):
             continue
         for p in bank.patterns:
@@ -141,6 +165,10 @@ def parse_message(msg: RawMessage, banks: Iterable[BankProfile]) -> Optional[Tra
             if not m:
                 continue
             g = {k: v for k, v in m.groupdict().items() if v is not None}
+            if p.subject_regex and (sm := p.subject_regex.search(msg.subject or "")):
+                for k, v in sm.groupdict().items():
+                    if v is not None:
+                        g.setdefault(k, v)
             status = _clean(g.get("status"))
             if status.lower() in p.failed_statuses:
                 return None
@@ -149,7 +177,7 @@ def parse_message(msg: RawMessage, banks: Iterable[BankProfile]) -> Optional[Tra
             if transfer_type in p.transfer_directions:
                 direction = p.transfer_directions[transfer_type]
             counterparty = _clean(g.get("counterparty"))
-            raw = _clean(g.get("merchant")) or counterparty or transfer_type or p.name
+            raw = _clean(g.get("merchant")) or counterparty or transfer_type or p.label or p.name
             key = merchant_key(raw)
             return Transaction(
                 id=hashlib.sha1(f"{bank.name}:{msg.id}".encode()).hexdigest()[:16],
@@ -190,7 +218,8 @@ def find_mirrors(txns: list[Transaction], banks: Iterable[BankProfile]) -> dict[
         best = None
         for p in txns:
             if (p.bank != t.bank or p.kind != rule.get("primary_kind") or p.id in used
-                    or p.account != t.account or abs(p.amount - t.amount) > 0.005):
+                    or (p.account != t.account and not rule.get("ignore_account"))
+                    or abs(p.amount - t.amount) > 0.005):
                 continue
             gap = abs((datetime.fromisoformat(p.occurred_at) - t_at).total_seconds())
             if gap <= window and (best is None or gap < best[0]):

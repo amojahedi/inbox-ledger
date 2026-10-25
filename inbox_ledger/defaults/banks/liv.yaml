@@ -1,0 +1,54 @@
+# Liv. (UAE) — the digital bank from Emirates NBD.
+#
+# Liv uses Emirates NBD's alert engine, so this profile reuses its wording. If Liv mails arrive from an
+# emiratesnbd.com address they are parsed (and labelled) as Emirates NBD instead; that is expected.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: Liv
+status: beta
+gmail_query: 'from:(liv.me OR alert@emiratesnbd.com)'
+senders: ['liv\.me>?$', '(^|[<@.])liv[\w.-]*@emiratesnbd\.com>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: atm_withdrawal
+    kind: account_debit
+    direction: out
+    label: 'ATM / cash withdrawal'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been withdrawn from your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    label: 'Account debit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:debited|deducted) from your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    label: 'Account credit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:credited|deposited) (?:in)?to your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: purchase_of
+    kind: card_purchase
+    direction: out
+    regex: '[Pp]urchase of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: (?:was made )?(?:with|using|on|via|from) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),?)? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: spent_on
+    kind: card_purchase
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:spent|used|charged) (?:on|with|using|via) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_used
+    kind: card_purchase
+    direction: out
+    regex: '(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]) (?:was|has been) used (?:for|to pay|to make) (?:a )?(?:purchase of |transaction of |payment of )?(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_refund
+    kind: card_purchase
+    direction: in
+    regex: '(?:[Rr]efund|[Rr]eversal) of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:credited |processed |made )?(?:to|on|for) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-])(?: (?:from|at) (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$))?'

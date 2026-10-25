@@ -1,0 +1,75 @@
+# Commercial Bank of Dubai (UAE).
+#
+# Wording is inferred from common UAE bank alert phrasings (public sources for this bank are scarce),
+# so expect gaps. The "Any bank" fallback profile may still catch what this one misses.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: Commercial Bank of Dubai
+status: beta
+gmail_query: 'from:(alerts@cbd.ae OR notifications@cbd.ae OR noreply@cbd.ae)'
+senders: ['cbd\.ae>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: purchase_of
+    kind: card_purchase
+    direction: out
+    regex: '[Pp]urchase of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: (?:was made )?(?:with|using|on|via|from) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),?)? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: txn_of
+    kind: card_purchase
+    direction: out
+    regex: '(?:Txn|Transaction) of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:on|using|with|via) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_used
+    kind: card_purchase
+    direction: out
+    regex: '(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]) (?:was|has been) used (?:for|to pay|to make) (?:a )?(?:purchase of |transaction of |payment of )?(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: spent_on
+    kind: card_purchase
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:spent|used|charged) (?:on|with|using|via) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: debited_card
+    kind: card_purchase
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?debited from your (?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),? (?:at|for) (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_refund
+    kind: card_purchase
+    direction: in
+    regex: '(?:[Rr]efund|[Rr]eversal) of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:credited |processed |made )?(?:to|on|for) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-])(?: (?:from|at) (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$))?'
+
+  - name: atm_withdrawal
+    kind: account_debit
+    direction: out
+    label: 'ATM withdrawal'
+    regex: '(?:ATM|[Cc]ash) withdrawal of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: (?:with|using|on|from) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]))?'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:debited|deducted|withdrawn) from your (?:[Aa]ccount|[Aa]/[Cc]|AC)(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{2,4})(?![\dXx*\-])(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:credited|deposited) (?:in)?to your (?:[Aa]ccount|[Aa]/[Cc]|AC)(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{2,4})(?![\dXx*\-])(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+
+  - name: account_debit_with
+    kind: account_debit
+    direction: out
+    regex: '(?:[Yy]our )?(?:[Aa]ccount|[Aa]/[Cc]|AC)(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{2,4})(?![\dXx*\-]) is debited with (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+
+  - name: account_credit_with
+    kind: account_credit
+    direction: in
+    regex: '(?:[Yy]our )?(?:[Aa]ccount|[Aa]/[Cc]|AC)(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{2,4})(?![\dXx*\-]) is credited with (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+
+  - name: transfer_out
+    kind: transfer
+    direction: out
+    label: 'Transfer'
+    regex: '(?:[Tt]ransfer of|transferred) (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:was )?(?:successful(?:ly)? )?(?:from (?:your )?(?:[Aa]ccount|[Aa]/[Cc]|AC)(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{2,4})(?![\dXx*\-]) )?to (?P<counterparty>.+?)(?=\s+(?:from|on|dated|Ref|Reference|Avl|Available|Bal|Balance|Status)\b|\.(?:\s|$)|$)'

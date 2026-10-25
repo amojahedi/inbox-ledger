@@ -7,6 +7,7 @@
 # `direction` is out | in | internal. Transfers may set it per transfer_type.
 
 name: Mashreq
+status: verified
 gmail_query: 'from:(MashreqAlerts@mashreq.com OR MashreqDigital@mashreq.com) (subject:Transaction OR subject:"Transfer request")'
 senders: ['mashreq\.com$']
 timezone: Asia/Dubai

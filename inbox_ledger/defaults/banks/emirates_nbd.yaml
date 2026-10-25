@@ -1,0 +1,85 @@
+# Emirates NBD (UAE) — current/savings accounts, debit and credit cards.
+#
+# Formats: account "Transaction advice" alerts (alert@emiratesnbd.com, e.g. "AED 12,750.00 has been withdrawn
+# from your account 012XXX34XXX56.", the last 4 digits are only in the subject) and "Local Bank Transfer"
+# notifications (OnlineBanking@emiratesnbd.com) follow publicly posted examples. The card-purchase patterns are
+# inferred from common UAE wording and are the least certain part of this profile.
+# ENBD does not date the account alerts, so the email timestamp is used.
+#
+# Status: beta — written from public examples, not verified against real alerts yet. Please contribute a sample (redacted) if it misses.
+
+name: Emirates NBD
+status: beta
+gmail_query: 'from:(alert@emiratesnbd.com OR OnlineBanking@emiratesnbd.com)'
+senders: ['emiratesnbd\.com>?$']
+timezone: Asia/Dubai
+
+patterns:
+  - name: transfer
+    kind: transfer
+    direction: out
+    label: 'Transfer'
+    regex: 'status of your (?P<transfer_type>[A-Za-z ]+?)\..*?Transaction Date:\s*(?P<when>\d{1,2}/[A-Za-z]{3}/\d{4}(?: \d{1,2}:\d{2} [AaPp][Mm])?)\s+From Account:\s*[\d*Xx]*?(?P<last4>\d{2,4})(?=\s)\s+Debit Amount:\s*(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?:.*?Beneficiary Name:\s*(?P<counterparty>.+?)(?=\s+Beneficiary Account|\s+Status:|$))?(?:.*?Status:\s*(?P<status>[A-Za-z]+))?'
+    when_format: '%d/%b/%Y %I:%M %p'
+    transfer_directions:
+      'Own Account Transfer': internal
+      'Own Account': internal
+      'Transfer Between Own Accounts': internal
+    failed_statuses: [Failed, Rejected, Cancelled]
+
+  - name: transfer_untyped
+    kind: transfer
+    direction: out
+    label: 'Transfer'
+    regex: 'Transaction Date:\s*(?P<when>\d{1,2}/[A-Za-z]{3}/\d{4}(?: \d{1,2}:\d{2} [AaPp][Mm])?)\s+From Account:\s*[\d*Xx]*?(?P<last4>\d{2,4})(?=\s)\s+Debit Amount:\s*(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?:.*?Beneficiary Name:\s*(?P<counterparty>.+?)(?=\s+Beneficiary Account|\s+Status:|$))?(?:.*?Status:\s*(?P<status>[A-Za-z]+))?'
+    when_format: '%d/%b/%Y %I:%M %p'
+    failed_statuses: [Failed, Rejected, Cancelled]
+
+  - name: atm_withdrawal
+    kind: account_debit
+    direction: out
+    label: 'ATM / cash withdrawal'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been withdrawn from your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: account_debit
+    kind: account_debit
+    direction: out
+    label: 'Account debit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:debited|deducted) from your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: account_credit
+    kind: account_credit
+    direction: in
+    label: 'Account credit'
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) has been (?:credited|deposited) (?:in)?to your account(?: [\dXx*]+)?(?: for (?P<merchant>.+?)(?=\.\s|\.?$))?'
+    subject_regex: 'account ending with\s+(?P<last4>\d{4})'
+
+  - name: purchase_of
+    kind: card_purchase
+    direction: out
+    regex: '[Pp]urchase of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*)(?: (?:was made )?(?:with|using|on|via|from) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),?)? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: spent_on
+    kind: card_purchase
+    direction: out
+    regex: '(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:spent|used|charged) (?:on|with|using|via) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]),? at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_used
+    kind: card_purchase
+    direction: out
+    regex: '(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-]) (?:was|has been) used (?:for|to pay|to make) (?:a )?(?:purchase of |transaction of |payment of )?(?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) at (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$)(?:\s+(?:on|dated|at)\s+(?P<when>\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)?|\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?))?'
+
+  - name: card_refund
+    kind: card_purchase
+    direction: in
+    regex: '(?:[Rr]efund|[Rr]eversal) of (?:(?P<currency>[A-Z]{3})\s?)?(?P<amount>[\d,]*\.\d{1,2}|\d[\d,]*) (?:has been |was )?(?:credited |processed |made )?(?:to|on|for) (?:your )?(?:[A-Za-z]+ ){0,4}?[Cc]ard(?: [Nn]o\.?| [Nn]umber)?\s*(?:ending(?: with| in)?|ends with)?\s*:?\s*[\dXx*\-]*?(?P<last4>\d{4})(?![\dXx*\-])(?: (?:from|at) (?P<merchant>.+?)(?=\s+(?:on|dated)\s+(?:\d|your\b|the\b)|\s+(?:using|with|via|Avl|Avail|Available|Bal|Balance|Ref|Reference|Limit|Current)\b|\.(?:\s|$)|$))?'
+
+# If ENBD also sends a "Transaction advice" for a transfer, drop it. The two emails show the account
+# differently (full number vs last 4), so the account is not compared; the window is short instead.
+dedupe:
+  mirror_kinds: [account_debit]
+  primary_kind: transfer
+  window_hours: 0.5
+  ignore_account: true
