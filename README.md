@@ -22,7 +22,7 @@ Most budgeting apps want your bank password, or a paid aggregator that doesn't s
 ## What it does
 
 - **Reads your bank alerts from Gmail.** Read-only OAuth, with only the bank's sender addresses queried. You can also import a Google Takeout `.mbox`.
-- **Understands them.** Each bank is a small YAML file of patterns. Card purchases, account debits, transfers and credits become structured transactions. Mashreq (UAE) is built in, and adding your bank takes no code.
+- **Understands them.** Each bank is a small YAML file of patterns. Card purchases, account debits, transfers and credits become structured transactions. Ten UAE banks are built in (see Supported banks), any other bank's alerts are picked up by a generic reader, and adding a bank takes no code.
 - **Removes double counting.** Banks often send two emails for one movement (a transfer receipt and a debit alert). Ledger pairs them and keeps one.
 - **Knows what isn't spending.** Moving money between your own accounts is tracked separately and never inflates your monthly total.
 - **Learns from one correction.** Tell it once that *Golden Sands* is Shopping, or that a transfer to someone is between your own accounts. That merchant is handled the same way, past and future, from then on. Every learned rule is listed and can be undone. A rule can also be tied to one exact amount, for when one app covers different things (your AED 32.50 coffee order on a food-delivery app, say).

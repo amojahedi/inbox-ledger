@@ -123,7 +123,8 @@ def candidates(store, limit: Optional[int] = None) -> list[RawMessage]:
         m = RawMessage(**dict(r))
         if m.id in cached or any(p.handles(m.sender) for p in store.providers):
             continue
-        if parse_message(m, store.banks) is None and looks_like_alert(m):
+        # Emails no bank-specific profile understood; the generic reader's guesses get a second opinion.
+        if parse_message(m, [b for b in store.banks if not b.fallback]) is None and looks_like_alert(m):
             out.append(m)
             if limit and len(out) >= limit:
                 break

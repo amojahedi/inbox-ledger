@@ -13,7 +13,9 @@
 name: Any bank
 status: beta
 fallback: true
-gmail_query: 'from:(alerts OR alert OR notification OR notifications) subject:(transaction OR purchase OR debited OR credited OR "card")'
+# No gmail_query: a broad search would pull receipts and newsletters into everyone's ledger.
+# Emails from unsupported banks arrive via import, a user profile in data/banks/, or `ai-read`.
+gmail_query: ''
 senders: ['^[\w.+-]*(?:alerts?|notifications?|noreply|no-reply|donotreply|do-not-reply|e-?statements?|transactions?|cardalerts?|ealerts?)@(?:[\w-]+\.)*(?:[\w-]*bank(?:s|ing)?|(?:bankfab|bankofamerica|bankmuscat|bankdhofar|emiratesnbd|enbd|adcb|dib|fab|rakbank|cbd|wio|liv|adib|emiratesislamic|mashreq|nbf|sib|ajmanbank|hsbc|citi|citibank|sc|standardchartered|qnb|nbk|kfh|alrajhi|alinma|snb|sab|riyadbank|banquemisr|barclays|lloyds|natwest|santander|monzo|revolut|wise|chase|capitalone|americanexpress|amex|wellsfargo|hdfc|icici|axis|sbi|kotak|dbs|ocbc|uob|maybank|cimb|anz|nab|cba|westpac|td|rbc|bmo|scotiabank))\.[\w.]+>?$']
 timezone: Asia/Dubai
 

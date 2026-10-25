@@ -98,7 +98,8 @@ def test_model_override(ai_on, monkeypatch):
 
 def test_extract_cache_rebuild_produces_transactions(ai_on, store):
     store.add_messages([card("c1", "TALABAT DUBAI AE"), alert("a1"), newsletter("n1")])
-    assert store.rebuild()["unparsed"] == 2
+    assert store.rebuild()["unparsed"] == 1  # the generic reader guesses a1; Claude gets a second look
+    assert any(t["pattern"].startswith("generic_") for t in store.transactions())
     todo = ai.candidates(store)
     assert [m.id for m in todo] == ["a1"]  # the newsletter has no amount: it never leaves the machine
 

@@ -157,6 +157,9 @@ class Store:
         txns = [t for t in (parse_message(m, self.banks) for m in msgs if m.id not in pl_ids) if t]
         cached = self.ai_cached()  # offline: Claude's earlier answers, never a network call
         if cached:
+            fallback = {b.name for b in self.banks if b.fallback}
+            # Claude's reading replaces a generic-reader guess for the same email.
+            txns = [t for t in txns if not (t.bank in fallback and t.message_id in cached and cached[t.message_id])]
             seen = {t.message_id for t in txns}
             tz = self.banks[0].timezone if self.banks else None
             txns += ai.transactions_from_cache((m for m in msgs if m.id not in pl_ids and m.id not in seen), cached, tz)
