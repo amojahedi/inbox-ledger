@@ -29,7 +29,9 @@ def test_pace_is_the_last_three_complete_months_with_income(store):
     assert (p["avg_in"], p["avg_out"], p["amount"]) == (avg_in, avg_out, avg_in - avg_out)
     assert avg_in == demo.SALARY and p["amount"] > 0
     for m in p["months"]:
-        assert m["saved"] == pytest.approx(m["in"] - m["out"])
+        assert m["keep"] == pytest.approx(m["in"] - m["out"]) == pytest.approx(m["saved"] + m["left"])
+        assert m["saved"] == demo.SAVING_TRANSFER  # what the Overview calls Saved: moved to your own savings
+    assert p["avg_saved"] + p["avg_left"] == p["amount"] and p["avg_saved"] == demo.SAVING_TRANSFER
 
 
 def test_pace_falls_back_to_fewer_months_and_skips_a_partial_first_month(store):

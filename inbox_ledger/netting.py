@@ -37,6 +37,7 @@ def apply(rows: list[dict]) -> None:
     live = [r for r in rows if not r["hidden"] and not r["mirror_of"]]
     match_refunds(live)
     settle_transfers(live)
+    mark_moves_back(live)
     for r in rows:
         r["spend"], r["income"], r["counted"] = _contribution(r)
 
@@ -53,6 +54,33 @@ def _contribution(r: dict) -> tuple[float, float, int]:
         back = r.get("payback", 0.0)  # the part of a credit that only returns money you sent
         return -back, round(amount - back, 2), 1
     return 0.0, 0.0, 1  # between your own accounts
+
+
+# ---- moves between your own accounts ---------------------------------------------
+
+def main_account(rows: list[dict]) -> str:
+    """The account your income lands in (the one credited the most), or "" when none is known."""
+    totals: dict[str, float] = {}
+    for r in rows:
+        if r["direction"] == "in" and r["kind"] == "account_credit" and r["account"] and not is_refund(r):
+            totals[r["account"]] = totals.get(r["account"], 0.0) + r["amount_base"]
+    return max(totals, key=totals.get) if totals else ""
+
+
+def mark_moves_back(rows: list[dict]) -> None:
+    """Saved is net: a move between your own accounts that leaves any account other than the main one, or
+    lands in the main one, is money coming back and is marked `moved_back` so the totals take it off.
+
+    This needs the alert to name the account; when it does not, or no income has arrived yet, every
+    own-account move counts as saved (docs/definitions.md, "Which way a move went")."""
+    main = main_account(rows)
+    for r in rows:
+        r["extra"].pop("moved_back", None)
+        if r["direction"] != "internal" or not main or not r["account"]:
+            continue
+        back = r["account"] == main if r["kind"] == "account_credit" else r["account"] != main
+        if back:
+            r["extra"]["moved_back"] = True
 
 
 # ---- refunds -------------------------------------------------------------------

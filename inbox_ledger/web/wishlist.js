@@ -100,7 +100,7 @@
       main = `
         <p class="eyebrow">Your saving pace</p>
         <div class="wl-big muted-big">Not known yet</div>
-        <p class="wl-explain">Ledger works out how much you save from the money that comes in and goes out. It hasn’t seen any income yet, so it can’t tell. Once your salary alerts arrive, this fills in by itself. Until then, tell it yourself:</p>
+        <p class="wl-explain">Ledger works out how much you keep each month from what comes in and what you spend. It hasn’t seen any income yet, so it can’t tell. Once your salary alerts arrive, this fills in by itself. Until then, tell it yourself:</p>
         ${paceForm(pace.manual)}`;
     } else if (wl.editPace) {
       main = `
@@ -108,7 +108,7 @@
         ${paceForm(pace.manual ?? (auto.amount != null ? Math.round(auto.amount) : null))}`;
     } else if (pace.source === "manual") {
       main = `
-        <p class="eyebrow">You said you can save</p>
+        <p class="eyebrow">You said you can put aside</p>
         <div class="wl-big ${pace.amount <= 0 ? "neg" : ""}">${amt(pace.amount)}<span> a month</span></div>
         <p class="wl-explain">Your own number.${auto.amount != null ? ` From your bank alerts, Ledger estimates <b>${amt(auto.amount)}</b> a month.` : ""}</p>
         <div class="wl-links">
@@ -116,18 +116,20 @@
           ${auto.amount != null ? `<button class="link" data-act="use-auto" data-focus="use-auto">Use Ledger’s estimate</button>` : ""}
         </div>`;
     } else {
-      const months = auto.months;
+      // What you keep = saved (moved to your own savings) + left, the same two numbers as the Overview.
+      const months = auto.months, signed = (v) => `${v < 0 ? "−" : ""}${amt(Math.abs(v))}`;
+      const avgSaved = auto.avg_saved ?? 0, avgLeft = auto.avg_left ?? pace.amount - avgSaved;
       main = `
-        <p class="eyebrow">You save about</p>
-        <div class="wl-big ${pace.amount <= 0 ? "neg" : ""}">${pace.amount < 0 ? "−" : ""}${amt(Math.abs(pace.amount))}<span> a month</span></div>
-        <p class="wl-sum">${amt(auto.avg_in)} came in − ${amt(auto.avg_out)} spent = <b>${pace.amount < 0 ? "−" : ""}${amt(Math.abs(pace.amount))}</b>,
+        <p class="eyebrow">You keep about</p>
+        <div class="wl-big ${pace.amount <= 0 ? "neg" : ""}">${signed(pace.amount)}<span> a month</span></div>
+        <p class="wl-sum"><b>${signed(avgSaved)} saved + ${signed(avgLeft)} left</b>: ${amt(auto.avg_in)} came in − ${amt(auto.avg_out)} spent,
           the average of ${esc(monthList(months))}.</p>
         <div class="wl-months" role="list">${months.map((m) => {
-          const saved = Math.round(m.in) - Math.round(m.out);
-          const i = nf0.format(Math.round(m.in)), o = nf0.format(Math.round(m.out));
+          const keep = Math.round(m.in) - Math.round(m.out), saved = Math.round(m.saved ?? 0), left = keep - saved;
+          const sv = nf0.format(Math.abs(saved)), lf = nf0.format(Math.abs(left));
           return `<div class="wl-m" role="listitem"><p><span class="wl-long">${esc(monthName(m.month))}</span><span class="wl-short" aria-hidden="true">${esc(monthName(m.month, "short"))}</span></p>
-            <strong class="${saved < 0 ? "neg" : ""}">${saved < 0 ? "−" : ""}${nf0.format(Math.abs(saved))}</strong>
-            <small><span class="wl-long">${i} in − ${o} out</span><span class="wl-short" aria-hidden="true">+${i}<br>−${o}</span></small></div>`;
+            <strong class="${keep < 0 ? "neg" : ""}">${keep < 0 ? "−" : ""}${nf0.format(Math.abs(keep))}</strong>
+            <small><span class="wl-long">${saved < 0 ? "−" : ""}${sv} saved + ${left < 0 ? "−" : ""}${lf} left</span><span class="wl-short" aria-hidden="true">${saved < 0 ? "−" : ""}${sv} saved<br>${left < 0 ? "−" : ""}${lf} left</span></small></div>`;
         }).join("")}</div>
         ${months.length < 3 ? `<p class="wl-explain small">Only ${months.length === 1 ? "one complete month has" : `${months.length} complete months have`} income so far, so this will settle as more months come in.</p>` : ""}
         <div class="wl-links"><button class="link" data-act="edit-pace" data-focus="edit-pace">Use my own number</button></div>`;
@@ -157,7 +159,7 @@
   function paceForm(value) {
     return `
       <form class="wl-pace-form" data-form="pace">
-        <label for="wl-pace-input">I can save</label>
+        <label for="wl-pace-input">I can put aside</label>
         <span class="wl-ccy-field"><span aria-hidden="true">${esc(state.meta.currency)}</span>
           <input type="text" inputmode="decimal" id="wl-pace-input" value="${value ?? ""}" placeholder="1,500" autocomplete="off"></span>
         <span>a month</span>
@@ -176,7 +178,7 @@
         ? `Spend ${cut} and ${esc(theName(t.wish))} arrives <b>${span(t.days_sooner)} sooner</b>${t.fixes_target && !(p.wishes.find((w) => w.id === t.wish_id)?.target_check?.on_track) ? `, in time for ${longDate(p.wishes.find((w) => w.id === t.wish_id).target)}` : ""}.`
         : `Spend ${cut} and that’s ${money(round10(t.cut))} more toward your wishes every month.`;
     } else if (t.kind === "reachable") {
-      text = `Spend ${cut} and you’d save about ${money(round10(t.new_pace))} a month: enough for ${esc(theName(t.wish))} by <b>${monthYear(t.ready_date)}</b>.`;
+      text = `Spend ${cut} and you’d keep about ${money(round10(t.new_pace))} a month: enough for ${esc(theName(t.wish))} by <b>${monthYear(t.ready_date)}</b>.`;
     } else {
       text = `Even ${cut} wouldn’t be enough to start saving. Trends shows where the rest goes.`;
     }
@@ -266,7 +268,7 @@
         <div class="card-head"><h2>Savings timeline</h2>
           <span class="legend-inline"><span class="key wl-line-key"></span>Your savings<span class="key wl-goal-key"></span>Wish reached</span></div>
         <div class="chart tall" id="wl-chart" data-label="Projected savings and when each wish is covered"></div>
-        <p class="wl-foot">${amt(p.saved)} saved today, plus ${amt(p.pace.amount)} a month. Each line is the running total of your list in order.</p>
+        <p class="wl-foot">${amt(p.saved)} put aside for wishes today, plus the ${amt(p.pace.amount)} you keep each month. Each line is the running total of your list in order.</p>
       </div>`;
   }
 
