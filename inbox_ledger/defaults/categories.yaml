@@ -4,6 +4,9 @@
 #
 # Your own corrections in the app always take precedence over these.
 #
+# fixed: true marks spending that is much the same every month (rent, bills, subscriptions).
+# The Overview splits Spent into Fixed and Everyday with it. Your own categories are everyday.
+#
 # color: one of blue, orange, aqua, yellow, magenta, green, violet, red, brown, teal, cyan, navy,
 # plum, olive, slate, forest, tan, gray —
 # a colour-blind-safe palette with light and dark variants defined in the UI.
@@ -43,16 +46,19 @@ categories:
   - key: subscriptions
     name: Subscriptions
     color: magenta
+    fixed: true
     keywords: [audible, netflix, spotify, apple.com, itunes, google, youtube, openai, chatgpt, anthropic, claude, disney, osn, careem plus, shahid, icloud, linkedin, microsoft, adobe, notion, atlassian, figma, github, canva]
 
   - key: housing
     name: Housing
     color: yellow
+    fixed: true
     keywords: [rent, ejari, landlord, property, real estate]
 
   - key: bills
     name: Bills & Utilities
     color: teal
+    fixed: true
     keywords: [dewa, dubai electricity, addc, sewa, etisalat, du, e&, virgin mobile, internet, smart dubai, smartdxbgov, government, amer, tasheel]
 
   - key: home

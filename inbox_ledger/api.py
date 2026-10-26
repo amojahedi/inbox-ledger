@@ -20,7 +20,7 @@ from .config import DEFAULTS, data_dir, open_store
 from .logos import MEDIA, Brands, fetch_icon
 from .parsing import load_banks
 from .paylater import load_providers
-from .store import Categories, Store
+from .store import Categories, Store, today_date
 from .sync import run_sync as _run_sync
 
 WEB = Path(__file__).parent / "web"
@@ -134,10 +134,11 @@ def meta():
     demo = in_demo(p)
     return {
         "currency": st.categories.base_currency,
-        "categories": [{"key": c["key"], "name": c["name"], "color": c["color"], "custom": bool(c.get("custom"))}
-                       for c in st.categories.items],
+        "categories": [{"key": c["key"], "name": c["name"], "color": c["color"], "custom": bool(c.get("custom")),
+                        "fixed": st.categories.is_fixed(c["key"])} for c in st.categories.items],
         "months": months,
-        "current": months[-1]["month"] if months else date.today().isoformat()[:7],
+        "current": months[-1]["month"] if months else today_date().isoformat()[:7],
+        "today": today_date().isoformat(),
         "banks": [b.name for b in st.banks],
         "bank_profiles": [{"name": b.name, "country": getattr(b, "country", "") or "",
                            "gmail": bool(b.gmail_query)} for b in st.banks],
@@ -168,10 +169,15 @@ def definitions():
     return _definitions
 
 
+def example_data(p: Optional[dict] = None) -> bool:
+    """Example data (the demo area or a `demo` data dir) is always shown as complete months."""
+    return in_demo(p) or (data_dir() / "DEMO").exists()
+
+
 @app.get("/api/summary")
 def summary(month: str):
-    s = S().summary(month)
-    for m in s.get("top_merchants", []):
+    s = S().summary(month, today=today_date(), example=example_data())
+    for m in s.get("top_merchants", []) + [x for x in (s.get("most_visited"),) if x]:
         m["brand"] = _brand(m["merchant"])
     return s
 

@@ -33,7 +33,8 @@ def test_meta(client):
     assert meta["current"] == meta["months"][-1]["month"]
     keys = {c["key"] for c in meta["categories"]}
     assert {"dining", "groceries", "people", "other"} <= keys
-    assert all({"key", "name", "color", "custom"} == set(c) for c in meta["categories"])
+    assert all({"key", "name", "color", "custom", "fixed"} == set(c) for c in meta["categories"])
+    assert {c["key"] for c in meta["categories"] if c["fixed"]} == {"housing", "bills", "subscriptions"}
 
 
 def test_summary(client, current):
