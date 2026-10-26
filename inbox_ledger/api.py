@@ -149,6 +149,25 @@ def meta():
     }
 
 
+DEFINITION_KEYS = ("came_in", "spent", "saved", "left", "fixed", "everyday", "settled", "hidden", "needs_review")
+
+
+def load_definitions() -> dict:
+    """The sentence shown beside each money word, from defaults/definitions.yaml (docs/definitions.md is the long version)."""
+    import yaml
+    spec = yaml.safe_load((DEFAULTS / "definitions.yaml").read_text()) or {}
+    return {k: {"title": str(spec[k]["title"]), "text": str(spec[k]["text"])} for k in DEFINITION_KEYS if k in spec}
+
+
+_definitions = load_definitions()
+
+
+@app.get("/api/definitions")
+def definitions():
+    """{key: {title, text}} for came_in, spent, saved, left, fixed, everyday, settled, hidden, needs_review."""
+    return _definitions
+
+
 @app.get("/api/summary")
 def summary(month: str):
     s = S().summary(month)
