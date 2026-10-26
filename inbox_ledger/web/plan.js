@@ -22,10 +22,19 @@
   const view = () => document.getElementById("view-plan");
 
   let inflight = null;  // Overview and the Plan tab often ask for the same month at once: share one request
-  async function fetchPlan(month, fresh = false) {
+  // Example data shows its latest month as finished (like the Overview), so the plan looks at the next one.
+  function planTarget(month) {
+    if (!(state.meta?.source?.demo && month === state.meta.current)) return { month, asOf: "" };
+    const [y, m] = month.split("-").map(Number);
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+    return { month: next, asOf: `&today=${next}-01` };
+  }
+
+  async function fetchPlan(shown, fresh = false) {
+    const { month, asOf } = planTarget(shown);
     const n = ++seq;
     if (fresh || !inflight || inflight.month !== month) {
-      const req = { month, p: api(`/api/plan?month=${month}`) };
+      const req = { month, p: api(`/api/plan?month=${month}${asOf}`) };
       inflight = req;
       req.p.finally(() => { if (inflight === req) inflight = null; }).catch(() => {});
     }

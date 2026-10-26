@@ -836,7 +836,7 @@ input.wl-inline-input { width: 150px; margin-top: 2px; padding: 6px 12px; font-s
   .wl-short { display: inline; }
   .wl-m small { white-space: normal; }
   .wl-timeline .card-head { flex-wrap: wrap; }
-
+}
 
 /* ---------- Plan: the days ahead ---------- */
 .plan-hero { padding-bottom: 32px; }

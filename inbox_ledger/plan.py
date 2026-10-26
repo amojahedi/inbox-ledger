@@ -352,11 +352,14 @@ def plan(st: Store, month: str, today: Optional[date] = None) -> dict:
                            "per_day": round(amount / days_left, 2)})
     allowances.sort(key=lambda a: (-a["typical"], a["category"]))
 
-    # 5. Savings goal: by default, what you already moved to your own accounts this month.
+    # 5. Savings goal: by default, what you already moved to your own accounts this month — or, before
+    #    you've moved anything, what you usually put aside (average of the typical months).
     goal_row = st.db.execute("SELECT amount FROM plan_goals WHERE month=?", (month,)).fetchone()
     moved = _whole(s.get("moved") or 0)
-    goal = {"amount": _whole(goal_row["amount"]) if goal_row else moved, "suggested": moved, "moved": moved,
-            "edited": goal_row is not None}
+    usual = _whole(sum(tr.get("moved") or [0]) / n_typ) if n_typ else 0
+    suggested = moved or usual
+    goal = {"amount": _whole(goal_row["amount"]) if goal_row else suggested, "suggested": suggested, "moved": moved,
+            "usual": usual, "edited": goal_row is not None}
 
     totals = {
         "money_in": _whole(s["received"]),

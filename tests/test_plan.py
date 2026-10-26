@@ -116,7 +116,7 @@ def test_plan_adds_up(seeded):
     s = seeded.summary("2026-10")
     assert p["totals"]["money_in"] == round(s["received"]) and p["totals"]["spent"] == round(s["spent"])
     assert p["goal"] == {"amount": round(s["moved"]), "suggested": round(s["moved"]), "moved": round(s["moved"]),
-                         "edited": False}
+                         "usual": 8000.0, "edited": False}
 
 
 def test_planned_items_and_changes(seeded):
