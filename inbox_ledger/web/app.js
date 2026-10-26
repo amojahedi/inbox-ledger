@@ -315,17 +315,35 @@ function renderSource() {
   $("#leave-demo").hidden = state.meta.mode !== "demo";
 }
 
+// Is the month still running? Example data always shows a finished example month.
+function inProgress(month) {
+  if (state.meta?.source?.demo) return false;
+  const [y, m] = month.split("-").map(Number), today = new Date();
+  return today.getFullYear() === y && today.getMonth() + 1 === m;
+}
+
+// Whole-number percentages that add up to exactly 100 (largest remainder).
+function percents(values) {
+  const total = values.reduce((a, v) => a + Math.max(0, v), 0) || 1;
+  const raw = values.map((v) => (Math.max(0, v) / total) * 100);
+  const out = raw.map(Math.floor);
+  let rest = 100 - out.reduce((a, v) => a + v, 0);
+  raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (rest > 0) { out[i]++; rest--; } });
+  return out;
+}
+
 function renderCategories(s) {
   // Refunds can leave a category below zero: it stays in the list but takes no share of the bar.
   const total = s.by_category.reduce((a, c) => a + Math.max(0, c.total), 0) || 1;
   $("#stackbar").innerHTML = s.by_category.filter((c) => c.total > 0).map((c) =>
     `<span style="flex-grow:${c.total};background:${color(c.category)}"></span>`).join("");
   $("#stackbar").setAttribute("aria-label", s.by_category.map((c) => `${catName(c.category)} ${money(c.total)}`).join(", ") || "No spending");
-  $("#legend").innerHTML = s.by_category.map((c) => `
-    <li><button class="lg" data-cat="${esc(c.category)}" aria-label="${esc(catName(c.category))}, ${money(c.total)}${c.total > 0 ? `, ${Math.round((c.total / total) * 100)}%` : ""}. Show transactions">
+  const pct = percents(s.by_category.map((c) => c.total));
+  $("#legend").innerHTML = s.by_category.map((c, i) => `
+    <li><button class="lg" data-cat="${esc(c.category)}" aria-label="${esc(catName(c.category))}, ${money(c.total)}${c.total > 0 ? `, ${pct[i]}%` : ""}. Show transactions">
       <span class="dot" style="background:${color(c.category)}"></span>
       <span class="lg-name">${esc(catName(c.category))}</span>
-      <span class="lg-val">${money(c.total)}<span class="lg-pct">${c.total > 0 ? `${Math.round((c.total / total) * 100)}%` : ""}</span></span>
+      <span class="lg-val">${money(c.total)}<span class="lg-pct">${c.total > 0 ? `${pct[i]}%` : ""}</span></span>
     </button></li>`).join("") || `<li class="muted">Nothing spent this month.</li>`;
   $("#legend-total").innerHTML = s.by_category.length
     ? `<span>Total</span><span>${money(s.by_category.reduce((a, c) => a + c.total, 0))}</span>` : "";
@@ -336,7 +354,7 @@ function renderStats(s) {
   const [y, m] = s.month.split("-").map(Number);
   const days = new Date(y, m, 0).getDate();
   const today = new Date();
-  const isCurrent = today.getFullYear() === y && today.getMonth() + 1 === m;
+  const isCurrent = inProgress(s.month);
   const lastDataDay = s.by_day.length ? +s.by_day[s.by_day.length - 1].day.slice(8) : 0;
   const elapsed = isCurrent ? Math.max(today.getDate(), lastDataDay) : days;
   const projecting = isCurrent && elapsed < days;
@@ -405,7 +423,7 @@ function renderLeft(s) {
   const el = $("#left-card");
   const [y, m] = s.month.split("-").map(Number);
   const days = new Date(y, m, 0).getDate(), today = new Date();
-  const current = today.getFullYear() === y && today.getMonth() + 1 === m;
+  const current = inProgress(s.month);
   const lastDay = s.by_day.length ? +s.by_day[s.by_day.length - 1].day.slice(8) : 0;
   const daysLeft = current ? Math.max(0, days - Math.max(today.getDate(), lastDay)) : 0;
   const spentBy = Object.fromEntries(s.by_category.map((c) => [c.category, c.total]));
