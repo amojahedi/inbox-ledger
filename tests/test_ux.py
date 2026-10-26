@@ -421,3 +421,15 @@ def test_phone_layout_rules():
     assert ".sheet-actions { position: sticky; bottom: 0;" in phone
     assert "max-height: none" in phone  # the phone sheet is full height
     assert ".chips-wrap.more::after { opacity: 1; }" in css
+
+
+def test_defs_js_mirrors_the_definitions_api(app):
+    """The built-in fallback in defs.js says the same as GET /api/definitions, key for key."""
+    api, client, d = app
+    served = client.get("/api/definitions").json()
+    js = (WEB / "defs.js").read_text()
+    block = js[js.index("const DEFS = {"):js.index("};", js.index("const DEFS = {"))]
+    built_in = dict(re.findall(r'^\s*(\w+): \{ title: "[^"]*", text: "([^"]*)" \},$', block, re.M))
+    assert set(built_in) == set(served) == {"spent", "came_in", "saved", "left", "fixed", "everyday", "settled", "hidden", "needs_review"}
+    assert built_in == {k: v["text"] for k, v in served.items()}
+    assert 'fetch("/api/definitions")' in js and "loadDefs();" in (WEB / "app.js").read_text()
