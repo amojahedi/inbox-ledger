@@ -16,13 +16,19 @@ UAE_OFFSET = timedelta(hours=4)
 SALARY = 30000.00
 RENT = 8000.00
 SAVING_TRANSFER = 8000.00
+# What a full month's spending adds up to, rent included: the current month lands on it exactly,
+# earlier months within about AED 120 of it, and no month ever passes AED 14,000.
+MONTH_TOTAL = 13900.00
 LANDLORD = "LANDLORD"
 FRIENDS = ["SARA AHMED", "LAYLA HASSAN", "DANIEL ROSS", "PRIYA MENON", "YUSUF RAHMAN", "NOUR KHALIL"]
+# Mirrors categories.yaml; foreign-currency charges are converted at this rate when the month is summed.
+FX = {"AED": 1.0, "USD": 3.6725}
 
-# Monthly spending per category (AED). Each month lands within a few percent of these, so months
-# compare sensibly and the demo's budgets (DEMO_BUDGETS) sit just above typical spending.
-TARGETS = {"dining": 980, "coffee": 540, "groceries": 620, "shopping": 600, "health": 150,
-           "taxi": 340, "transport": 250, "entertainment": 250, "other": 70}
+# Typical day-to-day spending per category (AED), rent and fixed charges aside. "shopping" includes the
+# pay-in-4 instalments, "health" sits on top of the gym membership. Each month scales these a few percent
+# either way so that it adds up to its total; a trip month scales them down to pay for the flight.
+TARGETS = {"dining": 1000, "coffee": 550, "groceries": 600, "shopping": 950, "health": 150,
+           "taxi": 350, "transport": 250, "entertainment": 250, "other": 70}
 
 # (merchant as printed on the card, relative size, purchases per month, likely hours, category it counts toward)
 _LUNCH, _DINNER, _DAY, _EVENING = (12, 14), (19, 22), (9, 18), (17, 22)
@@ -119,12 +125,18 @@ TABBY = "notifications@tabby.ai"
 _TABBY_STORES = [("Noon", 320, 600), ("Namshi", 280, 560), ("IKEA", 400, 640)]
 
 
+def _instalments(total: float, n: int = 4) -> list[tuple[int, float]]:
+    """Pay-in-4 schedule: (days after the order, amount) per instalment, the last one taking the rounding."""
+    parts = [round(total / n, 2)] * (n - 1)
+    parts.append(round(total - sum(parts), 2))
+    return [(30 * i, part) for i, part in enumerate(parts)]
+
+
 def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, n: int = 4) -> list[tuple]:
     """A pay-in-4 order: each instalment is a 'Tabby' card charge plus Tabby's email naming the store."""
     order = f"NA{rng.randint(10**11, 10**12 - 1)}{rng.randint(1000, 9999)}"
-    parts = [round(total / n, 2)] * (n - 1)
-    parts.append(round(total - sum(parts), 2))
-    dates = [local + timedelta(days=30 * i) for i in range(n)]
+    parts = [amount for _, amount in _instalments(total, n)]
+    dates = [local + timedelta(days=offset) for offset, _ in _instalments(total, n)]
     sched = "".join(f"| | {d:%-d %b, %Y} |  {_fmt(a)} |\n| | |\n" for d, a in zip(dates[1:], parts[1:]))
     out = []
     for i, (when, amount) in enumerate(zip(dates, parts)):
@@ -151,50 +163,58 @@ def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, 
     return out
 
 
-def _month_events(rng: random.Random, year: int, month: int, travel: bool, upto: Optional[int] = None) -> list[tuple]:
-    """One month of email. `upto` squeezes day-to-day spending into the days so far (the current month),
-    so the month to date already reads like a typical month instead of stopping short."""
+def _month_events(rng: random.Random, year: int, month: int, travel: bool, total: float, paylater: float,
+                  upto: Optional[int] = None) -> list[tuple]:
+    """One month of email whose spending adds up to exactly `total` (rent included). `paylater` is what
+    this month's pay-in-4 instalments already cost; `upto` squeezes day-to-day spending into the days so
+    far (the current month), so the month to date already reads like a full month instead of stopping short."""
     days = calendar.monthrange(year, month)[1]
     span = min(days, upto or days)
     out: list[tuple] = []
-
-    # Draw purchases, then scale each category so the month lands near its target (±8%).
-    drawn: dict[str, list] = {}
-    for merchant, size, (cmin, cmax), hours, group in _CARD_MERCHANTS:
-        for _ in range(rng.randint(cmin, cmax)):
-            drawn.setdefault(group, []).append([merchant, size * rng.uniform(0.7, 1.3), hours])
-    # A trip month pays for the flight and cash up front, and spends that much less day to day.
-    trip = (round(rng.uniform(900, 1400), 2), float(rng.choice([200, 300]))) if travel else None
-    squeeze = 1 - (sum(trip) / sum(TARGETS.values()) if trip else 0)
-    for group, items in drawn.items():
-        k = TARGETS[group] * squeeze * rng.uniform(0.96, 1.04) / sum(i[1] for i in items)
-        for merchant, weight, hours in items:
-            out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, span), hours), merchant,
-                             round(weight * k, 2), "AED"))
+    fixed = RENT + paylater  # spending settled before the day-to-day purchases are drawn
 
     for merchant, amount, day, hour, currency in _RECURRING:
         if amount is None:
             amount = round(rng.uniform(270, 330), 2)
         out.append(_card(rng, _stamp(rng, year, month, day, (hour, hour)), merchant, amount, currency))
+        fixed += round(amount * FX[currency], 2)
 
-    if trip:  # the flight, plus cash for the trip
-        out.append(_card(rng, _stamp(rng, year, month, rng.randint(2, 20), (10, 22)), "EMIRATES DUBAI AE", trip[0], "AED"))
-        out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, max(2, span)), (10, 22)), trip[1]))
+    if travel:  # the flight, plus some cash for the trip
+        flight, cash = round(rng.uniform(800, 1100), 2), 200.0
+        out.append(_card(rng, _stamp(rng, year, month, rng.randint(2, min(span, 20)), (10, 22)), "EMIRATES DUBAI AE",
+                         flight, "AED"))
+        out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, max(2, span)), (10, 22)), cash))
+        fixed += flight + cash
 
-    if True:  # one small pay-in-4 order a month, so the Pay later card always has something to show
-        store, lo, hi = rng.choice(_TABBY_STORES)
-        out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, max(3, min(span, 26))), (11, 21)), store,
-                            round(rng.uniform(lo, hi), 2))
+    for _ in range(rng.randint(0, 1)):  # the odd small transfer to a friend
+        amount = float(rng.choice([50, 70, 90, 120]))
+        out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, max(3, span)), (10, 23)), "local",
+                         rng.choice([MAIN, SAVINGS]), rng.choice(FRIENDS), amount)
+        fixed += amount
 
     out.append(_advice(_stamp(rng, year, month, 1, (7, 8)), MAIN,
                        f"AED {_fmt(SALARY)} has been credited to your account {{acct}} for Salary."))
     out += _transfer(rng, _stamp(rng, year, month, 2, (9, 12)), "local", MAIN, LANDLORD, RENT)
     out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, 6), (18, 21)), "own", MAIN, "Alex Demo",
                      SAVING_TRANSFER)
-    for _ in range(rng.randint(0, 1)):
-        src = rng.choice([MAIN, SAVINGS])
-        out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, max(3, span)), (10, 23)), "local", src,
-                         rng.choice(FRIENDS), float(rng.choice([50, 70, 90, 120])))
+
+    # Day-to-day purchases: draw them, then scale each category toward its share of what is left.
+    drawn: dict[str, list] = {}
+    for merchant, size, (cmin, cmax), hours, group in _CARD_MERCHANTS:
+        for _ in range(rng.randint(cmin, cmax)):
+            drawn.setdefault(group, []).append((merchant, size * rng.uniform(0.7, 1.3), hours))
+    targets = {group: (max(TARGETS[group] - paylater, 100) if group == "shopping" else TARGETS[group])
+               * rng.uniform(0.96, 1.04) for group in drawn}
+    k = (total - fixed) / sum(targets.values())
+    purchases: list[list] = []
+    for group, items in drawn.items():
+        per = targets[group] * k / sum(weight for _, weight, _ in items)
+        purchases += [[merchant, round(weight * per, 2), hours] for merchant, weight, hours in items]
+    # Rounding leaves a few fils either way; the biggest purchase takes them so the month adds up to the cent.
+    biggest = max(purchases, key=lambda p: p[1])
+    biggest[1] = round(biggest[1] + (total - fixed) - sum(p[1] for p in purchases), 2)
+    for merchant, amount, hours in purchases:
+        out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, span), hours), merchant, amount, "AED"))
     return out
 
 
@@ -203,20 +223,39 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
     rng = random.Random(seed)
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(tzinfo=None)
     local_now = now + UAE_OFFSET
-    travel_month = rng.randint(1, max(months - 1, 1))
-    events: list[tuple] = []
+    travel_month = rng.randint(1, max(months - 2, 1))  # never the current month, so it reads like a typical one
+    plan = []
     for i in range(months):
         index = local_now.year * 12 + local_now.month - 1 - (months - 1 - i)
         year, month = divmod(index, 12)
         current = i == months - 1
-        events += _month_events(rng, year, month + 1, i == travel_month, local_now.day - 1 if current else None)
+        plan.append((year, month + 1, i == travel_month, local_now.day - 1 if current else None))
+
+    # One small pay-in-4 order a month, so the Pay later card always has something to show. Its instalments
+    # are settled first: each month then absorbs the ones already charged to it.
+    events: list[tuple] = []
+    charged: dict[tuple[int, int], float] = {}
+    for year, month, _, upto in plan:
+        span = min(calendar.monthrange(year, month)[1], upto or 31)
+        store, lo, hi = rng.choice(_TABBY_STORES)
+        when, order_total = _stamp(rng, year, month, rng.randint(3, max(3, min(span, 22))), (11, 21)), round(rng.uniform(lo, hi), 2)
+        events += _tabby_order(rng, when, store, order_total)
+        for offset, amount in _instalments(order_total):
+            due = when + timedelta(days=offset)
+            if due <= local_now:
+                charged[(due.year, due.month)] = round(charged.get((due.year, due.month), 0) + amount, 2)
+
+    for year, month, travel, upto in plan:
+        total = MONTH_TOTAL if upto else round(MONTH_TOTAL + rng.uniform(-120, 80), 2)
+        events += _month_events(rng, year, month, travel, total, charged.get((year, month), 0.0), upto)
     events = sorted((e for e in events if e[0] <= local_now), key=lambda e: e[0])
     return [RawMessage(id=f"demo-{n}", date=_iso(local), sender=sender, subject=subject, body=body)
             for n, (local, sender, subject, body) in enumerate(events, 1)]
 
 
-DEMO_BUDGETS = {"housing": 8000, "dining": 1250, "bills": 1100, "groceries": 800, "shopping": 800, "coffee": 700,
-                "health": 600, "taxi": 450, "transport": 350, "entertainment": 350, "subscriptions": 200}
+# Each budget sits just above the category's typical month, so the budget bars read as nearly used up.
+DEMO_BUDGETS = {"housing": 8000, "dining": 1150, "bills": 1050, "shopping": 1100, "groceries": 700, "coffee": 650,
+                "health": 550, "taxi": 400, "transport": 300, "entertainment": 300, "subscriptions": 200}
 
 
 def seed(store, months: int = 6, seed: int = 7) -> int:

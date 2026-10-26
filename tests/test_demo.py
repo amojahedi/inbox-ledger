@@ -1,3 +1,5 @@
+import pytest
+
 from inbox_ledger import demo
 from datetime import datetime, timezone
 
@@ -49,3 +51,40 @@ def test_demo_has_unmatched_merchants(store):
     assert store.rebuild()["unparsed"] == 0
     other = {t["merchant_key"] for t in store.transactions(category="other", limit=5000)}
     assert {"al faris tailoring", "golden sands", "zen corner"} <= other
+
+
+MONTHS = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
+
+
+@pytest.mark.parametrize("seed", [3, 7, 11, 21, 42, 99])
+def test_every_demo_month_adds_up(store, seed):
+    """Salary 30,000 in, 8,000 saved, 8,000 rent, under 14,000 spent, and every screen's totals agree."""
+    store.add_messages(generate(seed=seed, now=NOW))
+    for category, limit in demo.DEMO_BUDGETS.items():
+        store.set_budget(category, limit)
+    store.rebuild()
+    assert store.categories.fx["USD"] == demo.FX["USD"]  # the demo converts USD charges the way the store does
+    months = store.months()
+    trends = store.trends("2026-10")
+    assert [m["month"] for m in months] == trends["months"] == MONTHS
+    for i, m in enumerate(months):
+        s = store.summary(m["month"])
+        assert s["received"] == trends["received"][i] == demo.SALARY == 30000
+        assert s["moved"] == trends["moved"][i] == demo.SAVING_TRANSFER == 8000
+        assert 13700 <= s["spent"] <= 14000
+        assert s["spent"] == m["spent"] == trends["spent"][i] == round(sum(c["total"] for c in s["by_category"]), 2)
+        assert round(s["received"] - s["spent"] - s["moved"], 2) == round(30000 - 8000 - s["spent"], 2) > 8000
+        by_cat = {c["category"]: c["total"] for c in s["by_category"]}
+        assert by_cat["housing"] == demo.RENT == 8000
+        for key, total in by_cat.items():
+            detail = store.category_detail(m["month"], key)
+            assert detail["total"] == total == round(sum(p["total"] for p in detail["places"]), 2)
+            assert trends["categories"][key][i] == total
+        for key, limit in demo.DEMO_BUDGETS.items():
+            assert by_cat.get(key, 0) <= limit  # budgets sit just above a typical month, never below it
+        assert all(by_cat.get(k, 0) >= 0.7 * demo.DEMO_BUDGETS[k] for k in ("dining", "coffee", "shopping", "bills")) \
+            or "travel" in by_cat  # only a trip month spends noticeably less day to day
+    assert store.summary("2026-10")["spent"] == demo.MONTH_TOTAL == 13900.00
+    rent = store.transactions(category="housing", limit=100)
+    assert len(rent) == 6 and {t["amount_base"] for t in rent} == {8000.0}
+    assert all("landlord" in t["merchant"].lower() for t in rent)
