@@ -1009,3 +1009,34 @@ details.al-more summary { color: var(--text-2); font-size: 14px; justify-content
   /* Five or more tabs still fit a phone's width. */
   .nav .segmented button { padding: 5px 4px; min-width: 0; font-size: 13px; letter-spacing: -0.01em; }
 }
+
+/* ---------- Overview: the month in plain words, fixed vs everyday ---------- */
+.hero-split { margin: 8px auto 0; color: var(--text-3); font-size: 15px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.hero-split:empty { display: none; }
+.stats .insight-card { grid-row: span 2; margin-bottom: 0; padding-bottom: 14px; }
+.stat-tiles { display: contents; }
+.insight-card .card-head { margin-bottom: 6px; }
+.insight-list { list-style: none; margin: 0; padding: 0; }
+.insight-list li + li { border-top: 0.5px solid var(--separator); }
+.insight-list .muted { display: block; padding: 10px 0; }
+.insight { display: grid; grid-template-columns: 10px minmax(0, 1fr) 16px; gap: 10px; align-items: start; width: 100%; padding: 11px 0; border: 0;
+  background: none; text-align: left; font: inherit; font-size: 15px; line-height: 1.35; letter-spacing: -0.01em; color: var(--text); }
+.insight .dot { margin-top: 5px; flex: none; }
+.insight:hover .insight-text { color: var(--accent-text); }
+.insight-chev { width: 16px; height: 16px; margin-top: 2px; color: var(--text-3); stroke-width: 1.8; }
+.head-side { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 2px 12px; text-align: right; }
+.card-head:has(.head-side) h2 { white-space: nowrap; }
+.incl[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.incl[aria-pressed="true"]::before { content: "✓ "; }
+.chart .bar.open { fill: var(--bar); opacity: 0.4; }
+.review { list-style: none; margin: 12px 0 0; padding: 0; border-top: 0.5px solid var(--separator); }
+.review .insight { grid-template-columns: minmax(0, 1fr); font-size: 14px; padding: 8px 0; color: var(--text-2); }
+.review li + li { border-top: 0.5px solid var(--separator); }
+.tiles-inline.four { grid-template-columns: repeat(4, 1fr); }
+.tiles-inline small { display: block; font-size: 12px; }
+@media (max-width: 860px) { .stats .insight-card { grid-column: 1 / -1; grid-row: auto; } }
+@media (max-width: 640px) {
+  .tiles-inline.four { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hero-split { font-size: 14px; }
+  .head-side { gap: 8px; }
+}
