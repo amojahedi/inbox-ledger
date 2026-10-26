@@ -324,6 +324,8 @@ function renderCategories(s) {
       <span class="lg-name">${esc(catName(c.category))}</span>
       <span class="lg-val">${money(c.total)}<span class="lg-pct">${Math.round((c.total / total) * 100)}%</span></span>
     </button></li>`).join("") || `<li class="muted">Nothing spent this month.</li>`;
+  $("#legend-total").innerHTML = s.by_category.length
+    ? `<span>Total</span><span>${money(s.by_category.reduce((a, c) => a + c.total, 0))}</span>` : "";
   $$("#legend .lg").forEach((b) => b.addEventListener("click", () => openCategory(b.dataset.cat)));
 }
 

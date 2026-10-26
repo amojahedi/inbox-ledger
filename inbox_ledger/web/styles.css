@@ -651,3 +651,4 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
 @media (max-width: 860px) { .grid-3, .budgets.cols-3 { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
 .budgets.cols-3 .b-left, .budgets.cols-3 .b-status { display: block; margin-left: 0; }
 .budgets.cols-3 .b-row { align-items: flex-start; }
+.legend-total { display: flex; justify-content: space-between; margin: 18px 0 0; padding-top: 14px; border-top: 0.5px solid var(--separator); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }

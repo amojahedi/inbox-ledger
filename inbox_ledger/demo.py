@@ -21,7 +21,7 @@ FRIENDS = ["SARA AHMED", "LAYLA HASSAN", "DANIEL ROSS", "PRIYA MENON", "YUSUF RA
 
 # Monthly spending per category (AED). Each month lands within a few percent of these, so months
 # compare sensibly and the demo's budgets (DEMO_BUDGETS) sit just above typical spending.
-TARGETS = {"dining": 1250, "coffee": 850, "groceries": 650, "shopping": 450, "health": 250,
+TARGETS = {"dining": 1200, "coffee": 780, "groceries": 600, "shopping": 380, "health": 230,
            "taxi": 200, "transport": 100, "entertainment": 100, "other": 120}
 
 # (merchant as printed on the card, relative size, purchases per month, likely hours, category it counts toward)
