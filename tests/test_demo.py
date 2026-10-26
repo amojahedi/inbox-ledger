@@ -1,3 +1,4 @@
+from inbox_ledger import demo
 from datetime import datetime, timezone
 
 from inbox_ledger.demo import generate
@@ -39,7 +40,7 @@ def test_transfers_cover_local_and_own_accounts(banks):
 def test_demo_has_salary_and_cash_withdrawals(banks):
     txns = [parse_message(m, banks) for m in generate(now=NOW) if "tabby" not in m.sender]
     salary = [t for t in txns if t.kind == "account_credit"]
-    assert len(salary) == 6 and {t.amount for t in salary} == {18500.0} and {t.account for t in salary} == {"7710"}
+    assert len(salary) == 6 and {t.amount for t in salary} == {demo.SALARY} and {t.account for t in salary} == {"7710"}
     assert any(t.kind == "account_debit" and t.merchant_raw == "ATM / cash withdrawal" for t in txns)
 
 

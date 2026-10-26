@@ -155,6 +155,19 @@ def summary(month: str):
     return s
 
 
+@app.get("/api/category/{key}")
+def category_detail(key: str, month: str):
+    d = S().category_detail(month, key)
+    for p in d["places"]:
+        p["brand"] = _brand(p["merchant"])
+    return d
+
+
+@app.get("/api/trends")
+def trends(month: str, months: int = 12):
+    return S().trends(month, max(1, min(months, 36)))
+
+
 @app.get("/api/transactions")
 def transactions(month: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None,
                  internal: str = "hide", via: Optional[str] = None):

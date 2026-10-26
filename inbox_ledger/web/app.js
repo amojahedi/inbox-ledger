@@ -7,7 +7,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 const INTERNAL = "__internal";  // chip key: moves between your own accounts (hidden from "All")
 const VIA = "__via:";           // chip key prefix: charges paid through a pay-later provider
-const VIEWS = ["overview", "activity", "rules", "settings"];
+const VIEWS = ["overview", "activity", "trends", "rules", "settings", "category"];
 const REPO = "https://github.com/amojahedi/inbox-ledger";
 const state = { meta: null, month: null, view: "overview", summary: null, txs: [], cat: null, q: "", editing: null,
   noLogo: new Set(), settings: null };
@@ -155,6 +155,128 @@ function barChart(el, data, { avg = null, labelEvery = 1, onClick = null } = {})
   });
 }
 
+// Line chart: one series per entry; a vertical crosshair shows every visible value for that x.
+function lineChart(el, labels, series, { tipTitle = (i) => labels[i], bars = null } = {}) {
+  const W = el.clientWidth, H = el.clientHeight;
+  const pad = { t: 12, r: 10, b: 22, l: 44 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b, n = labels.length;
+  const vis = series.filter((x) => !x.off);
+  const max = niceMax(Math.max(1, ...vis.flatMap((x) => x.values), ...(bars ? bars.values : [])));
+  const step = iw / n, x = (i) => pad.l + step * i + step / 2, y = (v) => pad.t + ih - (v / max) * ih;
+  const ticks = [0, max / 2, max];
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(el.dataset.label || "")}"><g class="grid">`;
+  for (const t of ticks) svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/>`;
+  svg += `</g><g class="axis">`;
+  for (const t of ticks) svg += `<text x="${pad.l - 8}" y="${y(t) + 4}" text-anchor="end">${t >= 1000 ? +(t / 1000).toFixed(1) + "k" : nf0.format(t)}</text>`;
+  const every = n > 8 && W < 520 ? 2 : 1;
+  labels.forEach((l, i) => { if (i % every === 0) svg += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(l)}</text>`; });
+  svg += `</g>`;
+  if (bars) {
+    const bw = Math.max(4, Math.min(step * 0.56, 34));
+    bars.values.forEach((v, i) => { svg += `<path class="bar" d="${barPath(x(i) - bw / 2, y(v), bw, (v / max) * ih)}"/>`; });
+  }
+  for (const sr of series) {
+    if (sr.off) continue;
+    const d = sr.values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    svg += `<path class="${sr.cls || "series"}" d="${d}" ${sr.color ? `style="stroke:${sr.color}"` : ""}/>`;
+    if (sr.dots) sr.values.forEach((v, i) => { svg += `<circle class="${sr.cls}-dot" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`; });
+  }
+  svg += `<line class="cross" id="cross-${el.id}" x1="0" x2="0" y1="${pad.t}" y2="${pad.t + ih}" visibility="hidden"/><g id="pts-${el.id}"></g>`;
+  labels.forEach((_, i) => { svg += `<rect class="hit" data-i="${i}" x="${pad.l + step * i}" y="${pad.t}" width="${step}" height="${ih}"/>`; });
+  el.innerHTML = svg + `</svg>`;
+  const cross = $(`#cross-${el.id}`, el), pts = $(`#pts-${el.id}`, el);
+  $$(".hit", el).forEach((h) => {
+    const i = +h.dataset.i;
+    h.addEventListener("mouseenter", (e) => {
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      pts.innerHTML = vis.filter((sr) => sr.color).map((sr) => `<circle class="pt" cx="${x(i)}" cy="${y(sr.values[i])}" r="4" style="fill:${sr.color}"/>`).join("");
+      const rows = [...(bars ? [{ name: bars.name, v: bars.values[i] }] : []), ...vis.map((sr) => ({ name: sr.name, v: sr.values[i], color: sr.color }))]
+        .sort((a, b) => b.v - a.v).slice(0, 8);
+      showTip(e, `<b>${esc(tipTitle(i))}</b>` + rows.map((r) => `<div class="tip-row"><span>${r.color ? `<span class="dot" style="background:${r.color};display:inline-block;width:8px;height:8px;margin-right:6px"></span>` : ""}${esc(r.name)}</span><span>${money(r.v)}</span></div>`).join(""));
+    });
+    h.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); pts.innerHTML = ""; hideTip(); });
+  });
+}
+
+// ---------- category detail ----------
+function openCategory(key) {
+  state.detailCat = key;
+  state.backTo = state.view === "category" ? state.backTo : state.view;
+  go("category");
+}
+
+async function loadCategory() {
+  const key = state.detailCat;
+  if (!key) return go("overview");
+  const d = await api(`/api/category/${encodeURIComponent(key)}?month=${state.month}`);
+  $("#cat-eyebrow").innerHTML = `<span class="dot" style="background:${color(key)}"></span>${esc(catName(key))} · ${esc(monthName(state.month))}`;
+  $("#cat-total").innerHTML = money(d.total);
+  const change = d.previous ? Math.round(((d.total - d.previous) / d.previous) * 100) : null;
+  $("#cat-sub").innerHTML = [
+    change === null ? "" : `<span class="${change > 0 ? "delta-up" : "delta-down"}">${change > 0 ? "▲" : "▼"} ${Math.abs(change)}%</span> vs ${esc(monthName(prevMonth(state.month)).split(" ")[0])}`,
+    `${plural(d.count, "purchase")} at ${plural(d.places.length, "place")}`,
+  ].filter(Boolean).join(" · ");
+  $("#cat-places-title").textContent = key === "dining" ? "Restaurants compared" : "Places compared";
+  $("#cat-places-note").textContent = d.places.length ? "Bar = share of this month" : "";
+  const top = Math.max(1, ...d.places.map((p) => p.total));
+  $("#cat-places").innerHTML = d.places.map((p, i) => {
+    const diff = p.previous ? Math.round(((p.total - p.previous) / p.previous) * 100) : null;
+    return `<li>
+      <span class="rank">${i + 1}</span>${avatar(p.merchant, p.brand, color(key), "sm")}
+      <span class="p-main"><div class="p-name">${esc(p.merchant)}</div>
+        <div class="p-sub">${plural(p.visits, "visit")} · ${money(p.average)} each${diff === null ? " · new" : ` · <span class="${diff > 0 ? "up" : "down"}">${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)}%</span>`}</div>
+        <div class="p-track"><div class="p-fill" style="width:${(p.total / top) * 100}%;background:${color(key)}"></div></div></span>
+      <span class="p-amt">${money(p.total)}<small>${Math.round((p.total / (d.total || 1)) * 100)}%</small></span></li>`;
+  }).join("") || `<li class="muted">Nothing in ${esc(catName(key).toLowerCase())} this month.</li>`;
+  barChart($("#cat-trend"), d.trend.map((m) => ({
+    label: monthName(m.month, "short"), value: m.total, hi: m.month === state.month, tip: `<b>${money(m.total)}</b>${monthName(m.month)}`,
+  })));
+}
+
+// ---------- trends ----------
+async function loadTrends() {
+  const months = state.trendMonths || 12;
+  $$("#trend-range button").forEach((b) => b.classList.toggle("on", +b.dataset.months === months));
+  state.trends = await api(`/api/trends?month=${state.month}&months=${months}`);
+  renderTrends();
+}
+
+function renderTrends() {
+  const t = state.trends;
+  if (!t || !t.months.length) return;
+  const labels = t.months.map((m) => monthName(m, "short"));
+  const full = (i) => monthName(t.months[i]);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const avgOut = sum(t.spent) / t.months.length, avgIn = sum(t.received) / t.months.length;
+  const saved = sum(t.received) - sum(t.spent);
+  $("#flow-stats").innerHTML = [
+    ["Average spent", money(avgOut)],
+    ["Average came in", avgIn ? money(avgIn) : "—"],
+    [saved >= 0 ? "Saved in total" : "Overspent", `${money(Math.abs(saved))}${sum(t.received) ? ` <small class="muted">${Math.round((saved / sum(t.received)) * 100)}%</small>` : ""}`],
+  ].map(([p, v]) => `<div><p>${p}</p><strong>${v}</strong></div>`).join("");
+  lineChart($("#flow-chart"), labels,
+    sum(t.received) ? [{ name: "Came in", values: t.received, cls: "income", dots: true }] : [],
+    { bars: { name: "Spent", values: t.spent }, tipTitle: (i) => `${full(i)} · ${t.received[i] >= t.spent[i] ? `saved ${money(t.received[i] - t.spent[i])}` : `over by ${money(t.spent[i] - t.received[i])}`}` });
+
+  const keys = Object.keys(t.categories).sort((a, b) => sum(t.categories[b]) - sum(t.categories[a]));
+  if (!state.trendOn) state.trendOn = new Set(keys.filter((k) => k !== "other").slice(0, 5));
+  $("#trend-chips").innerHTML = keys.map((k) =>
+    `<button class="chip ${state.trendOn.has(k) ? "" : "off"}" data-cat="${esc(k)}" aria-pressed="${state.trendOn.has(k)}"><span class="dot" style="background:${color(k)}"></span>${esc(catName(k))}</button>`).join("");
+  $$("#trend-chips .chip").forEach((b) => b.addEventListener("click", () => {
+    const k = b.dataset.cat;
+    state.trendOn.has(k) ? state.trendOn.delete(k) : state.trendOn.add(k);
+    renderTrends();
+  }));
+  lineChart($("#cat-chart"), labels,
+    keys.map((k) => ({ name: catName(k), values: t.categories[k], color: color(k), off: !state.trendOn.has(k) })),
+    { tipTitle: full });
+
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], top = Math.max(...t.weekday);
+  barChart($("#weekday-chart"), t.weekday.map((v, i) => ({
+    label: days[i], value: v, hi: v === top && v > 0, tip: `<b>${money(v)}</b>Average ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][i]}`,
+  })));
+}
+
 // ---------- overview ----------
 function renderHero(s) {
   const parts = nf2.formatToParts(s.spent);
@@ -197,7 +319,7 @@ function renderCategories(s) {
       <span class="lg-name">${esc(catName(c.category))}</span>
       <span class="lg-val">${money(c.total)}<span class="lg-pct">${Math.round((c.total / total) * 100)}%</span></span>
     </button></li>`).join("") || `<li class="muted">Nothing spent this month.</li>`;
-  $$("#legend .lg").forEach((b) => b.addEventListener("click", () => { state.cat = b.dataset.cat; go("activity"); }));
+  $$("#legend .lg").forEach((b) => b.addEventListener("click", () => openCategory(b.dataset.cat)));
 }
 
 function renderStats(s) {
@@ -283,6 +405,48 @@ function renderHours(s) {
   barChart($("#hour-chart"), data, { labelEvery: 3 });
 }
 
+// How much is left for the rest of the month: from what came in, and from the budgets set.
+function renderLeft(s) {
+  const el = $("#left-card");
+  const [y, m] = s.month.split("-").map(Number);
+  const days = new Date(y, m, 0).getDate(), today = new Date();
+  const current = today.getFullYear() === y && today.getMonth() + 1 === m;
+  const lastDay = s.by_day.length ? +s.by_day[s.by_day.length - 1].day.slice(8) : 0;
+  const daysLeft = current ? Math.max(0, days - Math.max(today.getDate(), lastDay)) : 0;
+  const spentBy = Object.fromEntries(s.by_category.map((c) => [c.category, c.total]));
+  const budgeted = Object.entries(s.budgets || {});
+  const budgetTotal = budgeted.reduce((a, [, v]) => a + v, 0);
+  const budgetUsed = budgeted.reduce((a, [k]) => a + (spentBy[k] || 0), 0);
+  const income = s.received || 0;
+  if (!income && !budgetTotal) { el.hidden = true; return; }
+  el.hidden = false;
+  const aside = income ? s.moved || 0 : 0;  // money moved to your own savings isn't there to spend
+  const base = income || budgetTotal, used = income ? s.spent : budgetUsed;
+  const left = base - used - aside, share = Math.max(0, Math.min(1, left / base));
+  const title = !current ? (left >= 0 ? `Left over in ${monthName(s.month).split(" ")[0]}` : `Over in ${monthName(s.month).split(" ")[0]}`)
+    : "Left for the rest of the month";
+  const perDay = current && daysLeft > 0 && left > 0 ? `About <b>${money(left / daysLeft)}</b> a day for the next ${plural(daysLeft, "day")}` :
+    current && daysLeft === 0 ? "Last day of the month" : left < 0 ? "You spent more than came in" : "";
+  el.innerHTML = `
+    <div>
+      <p class="eyebrow">${esc(title)}</p>
+      <div class="left-big ${left < 0 ? "neg" : ""}">${left < 0 ? "−" : ""}${money(Math.abs(left))}</div>
+      <p class="left-sub">${perDay}</p>
+      <div class="left-meter" role="progressbar" aria-label="Share left" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}">
+        <div class="${share < 0.1 ? "none" : share < 0.3 ? "low" : ""}" style="width:${share * 100}%"></div></div>
+      <p class="left-sum">${income
+        ? `${money(income)} came in − ${money(s.spent)} spent${aside ? ` − ${money(aside)} put aside` : ""} = <b>${left < 0 ? "−" : ""}${money(Math.abs(left))} left</b>`
+        : `${money(budgetTotal)} budgeted − ${money(budgetUsed)} used = <b>${money(left)} left</b>`}</p>
+    </div>
+    <div class="left-side">
+      ${income ? `<div><p>Came in</p><strong>${money(income)}</strong></div>` : ""}
+      ${budgetTotal ? (budgetUsed > budgetTotal
+        ? `<div><p>Budgets</p><strong class="delta-up">Over by ${money(budgetUsed - budgetTotal)}</strong><small>of ${money(budgetTotal)}</small></div>`
+        : `<div><p>Budgets left</p><strong>${money(budgetTotal - budgetUsed)}</strong><small>of ${money(budgetTotal)}</small></div>`) : ""}
+      ${income ? `<div><p>Saved this month</p><strong>${money(Math.max(0, income - s.spent))}</strong><small>${aside ? `${money(aside)} put aside + ${money(Math.max(0, left))} unspent` : "not spent yet"}</small></div>` : ""}
+    </div>`;
+}
+
 function renderBudgets(s) {
   const spent = Object.fromEntries(s.by_category.map((c) => [c.category, c.total]));
   const keys = state.meta.categories.map((c) => c.key)
@@ -294,7 +458,7 @@ function renderBudgets(s) {
     return `<li>
       <div class="b-row">
         <span class="dot" style="background:${color(k)}"></span>
-        <span class="b-name">${esc(catName(k))}${over ? `<span class="b-status">Over by ${money(used - limit)}</span>` : ""}</span>
+        <span class="b-name">${esc(catName(k))}${over ? `<span class="b-status">Over by ${money(used - limit)}</span>` : limit ? `<span class="b-left">${money(limit - used)} left</span>` : ""}</span>
         <span class="b-amt">${money(used)}</span>
         <button class="b-limit ${limit ? "" : "unset"}" data-cat="${k}" aria-label="${limit ? `Change ${esc(catName(k))} limit, now ${nf0.format(limit)}` : `Set a limit for ${esc(catName(k))}`}">${limit ? `of ${nf0.format(limit)}` : "Set limit"}</button>
       </div>
@@ -925,7 +1089,7 @@ async function obAction(kind, el) {
 // ---------- navigation ----------
 const prevMonth = (m) => { const [y, mo] = m.split("-").map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`; };
 
-function setMonth(m) { state.month = m; syncHash(); loadMonth(); if (state.view === "activity") loadActivity(); }
+function setMonth(m) { state.month = m; syncHash(); loadMonth(); if (state.view === "activity") loadActivity(); if (state.view === "trends") loadTrends(); if (state.view === "category") loadCategory(); }
 
 function go(view) {
   state.view = view;
@@ -938,6 +1102,8 @@ function go(view) {
   if (view === "activity") loadActivity();
   if (view === "rules") loadRules();
   if (view === "settings") loadSettings();
+  if (view === "trends") loadTrends();
+  if (view === "category") loadCategory();
   if (view === "overview" && state.summary) renderCharts();
   scrollTo({ top: 0 });
 }
@@ -962,7 +1128,7 @@ async function loadMonth() {
   const s = state.summary = await api(`/api/summary?month=${state.month}`);
   renderHero(s); renderSource();
   if (empty) return;
-  renderCategories(s); renderStats(s); renderPayLater(s); renderBudgets(s); renderMerchants(s);
+  renderCategories(s); renderLeft(s); renderStats(s); renderPayLater(s); renderBudgets(s); renderMerchants(s);
   if (state.view === "overview") renderCharts();
 }
 
@@ -1055,7 +1221,16 @@ function wire() {
   });
 
   let rTimer;
-  addEventListener("resize", () => { clearTimeout(rTimer); rTimer = setTimeout(() => state.view === "overview" && state.summary && renderCharts(), 120); });
+  addEventListener("resize", () => { clearTimeout(rTimer); rTimer = setTimeout(() => {
+    if (state.view === "overview" && state.summary) renderCharts();
+    if (state.view === "trends") renderTrends();
+  }, 120); });
+  $("#cat-back").addEventListener("click", () => go(state.backTo || "overview"));
+  $("#cat-all").addEventListener("click", () => { state.cat = state.detailCat; go("activity"); });
+  $("#trend-range").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.trendMonths = +b.dataset.months; loadTrends();
+  });
   addEventListener("hashchange", () => {
     const [v, m] = location.hash.slice(1).split("/");
     if (m && m !== state.month && months().includes(m)) setMonth(m);

@@ -39,8 +39,9 @@ def test_meta(client):
 def test_summary(client, current):
     s = client.get("/api/summary", params={"month": current}).json()
     assert s["month"] == current and s["currency"] == "AED"
-    assert s["received"] == 18500.0
-    assert 0 < s["spent"] < 15000
+    from inbox_ledger.demo import SALARY
+    assert s["received"] == SALARY
+    assert 0 < s["spent"] < s["received"]  # the demo always saves something
     assert s["previous_spent"] > 0
     assert sum(c["total"] for c in s["by_category"]) == pytest.approx(s["spent"], abs=0.1)
     assert client.get("/api/summary").status_code == 422
@@ -105,3 +106,21 @@ def test_create_and_delete_category(client):
     assert client.post("/api/categories", json={"name": "X", "color": "plaid"}).status_code == 400
     assert client.delete("/api/categories/gifts").status_code == 200
     assert client.delete("/api/categories/dining").status_code == 404
+
+
+def test_trends(client, current):
+    t = client.get("/api/trends", params={"month": current, "months": 6}).json()
+    assert len(t["months"]) == 3 and t["months"][-1] == current
+    assert len(t["spent"]) == len(t["received"]) == 3 and all(x > 0 for x in t["spent"])
+    assert all(len(v) == 3 for v in t["categories"].values()) and "housing" in t["categories"]
+    assert len(t["weekday"]) == 7 and sum(t["weekday"]) > 0
+
+
+def test_category_detail_compares_places(client, current):
+    d = client.get("/api/category/dining", params={"month": current}).json()
+    assert d["category"] == "dining" and d["total"] > 0 and d["places"]
+    assert d["total"] == round(sum(p["total"] for p in d["places"]), 2)
+    totals = [p["total"] for p in d["places"]]
+    assert totals == sorted(totals, reverse=True)
+    assert {"visits", "average", "previous", "brand"} <= set(d["places"][0])
+    assert 1 <= len(d["trend"]) <= 6 and d["trend"][-1]["month"] == current

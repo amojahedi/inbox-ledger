@@ -13,20 +13,23 @@ ONLINE = "OnlineBanking@emiratesnbd.com"
 CARD, MAIN, SAVINGS = "4021", "7710", "3390"
 UAE_OFFSET = timedelta(hours=4)
 
-SALARY = 18500.00
-RENT = 2500.00
-SAVING_TRANSFER = 1500.00
-LANDLORD = "OMAR HADDAD - RENT"
+SALARY = 30000.00
+RENT = 8000.00
+SAVING_TRANSFER = 8000.00
+LANDLORD = "LANDLORD"
 FRIENDS = ["SARA AHMED", "LAYLA HASSAN", "DANIEL ROSS", "PRIYA MENON", "YUSUF RAHMAN", "NOUR KHALIL"]
 
 # (merchant as printed on the card, min, max, purchases per month, likely hours, currency)
 _LUNCH, _DINNER, _DAY, _EVENING = (12, 14), (19, 22), (9, 18), (17, 22)
 _CARD_MERCHANTS = [
-    ("CAREEM FOOD DUBAI AE", 28, 75, (4, 7), _DINNER, "AED"),
-    ("TALABAT DUBAI AE", 45, 115, (3, 5), _DINNER, "AED"),
-    ("STARBUCKS DUBAI AE", 17, 34, (5, 8), (8, 11), "AED"),
-    ("ARABICA DUBAI AE", 22, 42, (2, 4), (9, 17), "AED"),
-    ("SHAWARMA HOUSE DUBAI AE", 28, 60, (2, 3), _LUNCH, "AED"),
+    ("CAREEM FOOD DUBAI AE", 45, 115, (10, 15), _DINNER, "AED"),
+    ("TALABAT DUBAI AE", 60, 165, (7, 11), _DINNER, "AED"),
+    ("THE MEAT CO RESTAURANT DUBAI AE", 220, 480, (1, 2), _DINNER, "AED"),
+    ("STARBUCKS DUBAI AE", 35, 65, (10, 14), (8, 11), "AED"),
+    ("ARABICA DUBAI AE", 55, 95, (14, 20), (9, 17), "AED"),
+    ("TIM HORTONS DUBAI AE", 30, 55, (8, 12), (7, 11), "AED"),
+    ("CARIBOU COFFEE DUBAI AE", 35, 60, (4, 6), (9, 17), "AED"),
+    ("SHAWARMA HOUSE DUBAI AE", 28, 60, (3, 5), _LUNCH, "AED"),
     ("CARREFOUR MOE DUBAI AE", 70, 280, (3, 5), _EVENING, "AED"),
     ("SPINNEYS DUBAI AE", 90, 340, (1, 2), _EVENING, "AED"),
     ("CAREEM RIDE DUBAI AE", 16, 58, (6, 10), (7, 23), "AED"),
@@ -35,6 +38,8 @@ _CARD_MERCHANTS = [
     ("AMAZON.AE DUBAI AE", 45, 380, (1, 3), (10, 23), "AED"),
     ("NOON.COM DUBAI AE", 60, 330, (1, 2), (10, 23), "AED"),
     ("LIFE PHARMACY DUBAI AE", 35, 170, (1, 2), _DAY, "AED"),
+    ("SEPHORA DUBAI AE", 120, 520, (1, 3), (12, 21), "AED"),
+    ("F45 TRAINING DUBAI AE", 95, 140, (2, 4), (6, 8), "AED"),
     ("VOX CINEMAS DUBAI AE", 55, 125, (1, 2), _EVENING, "AED"),
     # Not in categories.yaml on purpose: these are what you teach the app once.
     ("AL FARIS TAILORING DUBAI AE", 60, 260, (0, 1), _DAY, "AED"),
@@ -43,13 +48,14 @@ _CARD_MERCHANTS = [
 ]
 # (merchant, amount, day of month, hour, currency) — fixed monthly charges
 _RECURRING = [
-    ("FITNESS FIRST DUBAI AE", 399.00, 3, 7, "AED"),
+    ("FITNESS FIRST DUBAI AE", 650.00, 3, 7, "AED"),
     ("DEWA DUBAI AE", None, 5, 10, "AED"),
     ("NETFLIX.COM SINGAPORE SG", 15.49, 8, 3, "USD"),
     ("SPOTIFY LUXEMBOURG LU", 4.99, 12, 5, "USD"),
     ("APPLE.COM/BILL DUBLIN IE", 9.99, 15, 6, "USD"),
     ("OPENAI *CHATGPT SUBSCR SAN FRANCISCO US", 20.00, 19, 4, "USD"),
-    ("DU DUBAI AE", 249.00, 21, 11, "AED"),
+    ("DU DUBAI AE", 449.00, 21, 11, "AED"),
+    ("ETISALAT DUBAI AE", 389.00, 18, 10, "AED"),
 ]
 
 
@@ -149,7 +155,7 @@ def _month_events(rng: random.Random, year: int, month: int, scale: float, trave
 
     for merchant, amount, day, hour, currency in _RECURRING:
         if amount is None:
-            amount = round(rng.uniform(320, 640), 2)
+            amount = round(rng.uniform(1100, 1250), 2)
         out.append(_card(rng, _stamp(rng, year, month, day, (hour, hour)), merchant, amount, currency))
 
     if rng.random() < 0.55:
@@ -195,8 +201,8 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
             for n, (local, sender, subject, body) in enumerate(events, 1)]
 
 
-DEMO_BUDGETS = {"dining": 900, "groceries": 800, "shopping": 600, "taxi": 400, "transport": 300,
-                "subscriptions": 200, "housing": 3500}
+DEMO_BUDGETS = {"dining": 2600, "groceries": 800, "shopping": 600, "taxi": 400, "transport": 300,
+                "subscriptions": 200, "housing": 8000, "coffee": 2200, "bills": 2100}
 
 
 def seed(store, months: int = 6, seed: int = 7) -> int:

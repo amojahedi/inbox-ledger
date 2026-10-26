@@ -21,7 +21,7 @@ fx:
 
 categories:
   - key: coffee
-    name: Coffee
+    name: Coffee & cafés
     color: brown
     keywords: [arabica, starbucks, costa, tim hortons, caribou, coffee, cafe, brew, espresso]
 
@@ -73,7 +73,7 @@ categories:
   - key: health
     name: Health & Beauty
     color: green
-    keywords: [pharmacy, iherb, ufc, gold's gym, barry's, f45, the platform, aster, nmc, mediclinic, life pharmacy, boots, clinic, hospital, medical, dental, salon, saloon, beauty, spa, gym, fitness]
+    keywords: [pharmacy, iherb, ufc, gold's gym, barry's, f45, the platform, aster, nmc, mediclinic, life pharmacy, boots, clinic, hospital, medical, dental, salon, saloon, beauty, sephora, faces, spa, gym, fitness]
 
   - key: entertainment
     name: Entertainment

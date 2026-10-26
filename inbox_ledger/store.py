@@ -353,6 +353,55 @@ class Store:
             })
         return out
 
+    def category_detail(self, month: str, category: str) -> dict:
+        """One category for one month: total, last month, places ranked, and the last six months."""
+        v = self._VISIBLE
+        q = (f"FROM transactions WHERE category=? AND direction='out' AND {v}")
+        total = self.db.execute(f"SELECT coalesce(sum(amount_base),0), count(*) {q} AND month=?", (category, month)).fetchone()
+        prev = self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=?", (category, _prev_month(month))).fetchone()[0]
+        places = [dict(r) for r in self.db.execute(
+            f"SELECT merchant, merchant_key, round(sum(amount_base),2) AS total, count(*) AS visits,"
+            f" round(avg(amount_base),2) AS average, max(occurred_at) AS last {q} AND month=?"
+            f" GROUP BY merchant_key ORDER BY total DESC", (category, month))]
+        for p in places:
+            p["previous"] = round(self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=? AND merchant_key=?",
+                                                  (category, _prev_month(month), p["merchant_key"])).fetchone()[0], 2)
+        recent = [m["month"] for m in self.months() if m["month"] <= month][-6:]
+        trend = [{"month": m, "total": round(self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=?",
+                                                             (category, m)).fetchone()[0], 2)} for m in recent]
+        return {"category": category, "month": month, "total": round(total[0], 2), "count": total[1],
+                "previous": round(prev, 2), "places": places, "trend": trend}
+
+    def trends(self, upto: str, months: int = 12) -> dict:
+        """Month-by-month money in and out, spending per category, and spending by weekday."""
+        have = [m["month"] for m in self.months() if m["month"] <= upto][-months:]
+        v = self._VISIBLE
+        out = {"months": have, "spent": [], "received": [], "categories": {}, "weekday": [0.0] * 7}
+        for i, m in enumerate(have):
+            row = self.db.execute(
+                f"SELECT coalesce(sum(CASE WHEN direction='out' THEN amount_base END),0),"
+                f" coalesce(sum(CASE WHEN direction='in' THEN amount_base END),0) FROM transactions WHERE month=? AND {v}",
+                (m,)).fetchone()
+            out["spent"].append(round(row[0], 2))
+            out["received"].append(round(row[1], 2))
+            for r in self.db.execute(f"SELECT category, sum(amount_base) FROM transactions WHERE month=? AND"
+                                     f" direction='out' AND {v} GROUP BY category", (m,)):
+                out["categories"].setdefault(r[0], [0.0] * len(have))[i] = round(r[1], 2)
+        if have:
+            # Average per calendar weekday (Mon=0) over the days the window covers.
+            first, last = f"{have[0]}-01", self.db.execute(
+                f"SELECT max(substr(occurred_at,1,10)) FROM transactions WHERE month=? AND {v}", (have[-1],)).fetchone()[0]
+            days = self.db.execute(
+                "WITH RECURSIVE d(x) AS (SELECT date(?) UNION ALL SELECT date(x, '+1 day') FROM d WHERE x < date(?))"
+                " SELECT (CAST(strftime('%w', x) AS INT) + 6) % 7, count(*) FROM d GROUP BY 1", (first, last)).fetchall()
+            n = {w: c for w, c in days}
+            for w, total in self.db.execute(
+                    f"SELECT (CAST(strftime('%w', substr(occurred_at,1,10)) AS INT) + 6) % 7, sum(amount_base)"
+                    f" FROM transactions WHERE month IN ({','.join('?' * len(have))}) AND direction='out' AND {v}"
+                    f" GROUP BY 1", have):
+                out["weekday"][w] = round(total / max(n.get(w, 1), 1), 2)
+        return out
+
     def months(self) -> list[dict]:
         return [dict(r) for r in self.db.execute(
             f"SELECT month, round(sum(CASE WHEN direction='out' THEN amount_base ELSE 0 END),2) AS spent,"

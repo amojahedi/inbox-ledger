@@ -152,6 +152,8 @@ brands:
 
   # ---- Health and fitness ----
   - {key: life-pharmacy, name: Life Pharmacy, domain: lifepharmacy.com, color: "#E4003A", match: [life pharmacy]}
+  - {key: sephora, name: Sephora, domain: sephora.ae, color: "#000000", match: [sephora]}
+  - {key: f45, name: F45 Training, domain: f45training.com, color: "#1B2A4A", match: [f45]}
   - {key: aster, name: Aster, domain: asterpharmacy.ae, color: "#00539F", match: [aster, aster pharmacy]}
   - {key: boots, name: Boots, domain: boots.com, color: "#05054B", match: [boots]}
   - {key: fitness-first, name: Fitness First, domain: fitnessfirstme.com, color: "#D71920", match: [fitness first]}

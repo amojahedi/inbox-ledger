@@ -24,6 +24,7 @@
       <nav class="segmented" role="tablist" aria-label="Sections">
         <button role="tab" data-view="overview" aria-selected="true" aria-controls="view-overview">Overview</button>
         <button role="tab" data-view="activity" aria-controls="view-activity">Activity</button>
+        <button role="tab" data-view="trends" aria-controls="view-trends">Trends</button>
         <button role="tab" data-view="rules" aria-controls="view-rules">Rules</button>
       </nav>
       <div class="nav-end">
@@ -80,6 +81,7 @@
           <button class="link" id="callout-btn">Review</button>
         </div>
 
+        <div class="card left-card" id="left-card" hidden></div>
         <div class="stats" id="stats"></div>
 
         <div class="card" id="paylater" hidden></div>
@@ -123,6 +125,55 @@
       <div class="card flush">
         <ul class="tx-list" id="tx-list"></ul>
         <div class="empty" id="tx-empty" hidden></div>
+      </div>
+    </section>
+
+    <!-- Category detail (opened from a category) -->
+    <section class="view" id="view-category" aria-label="Category" hidden>
+      <button class="back link" id="cat-back">‹ Back</button>
+      <div class="hero small cat-hero">
+        <p class="eyebrow" id="cat-eyebrow"></p>
+        <h1 class="hero-number" id="cat-total"></h1>
+        <p class="hero-sub" id="cat-sub"></p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2 id="cat-places-title">Where it went</h2><span class="muted" id="cat-places-note"></span></div>
+        <ol class="places" id="cat-places"></ol>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Last six months</h2></div>
+        <div class="chart" id="cat-trend" data-label="This category over the last six months"></div>
+      </div>
+      <div class="cat-actions"><button class="btn secondary" id="cat-all">See every transaction</button></div>
+    </section>
+
+    <!-- Trends -->
+    <section class="view" id="view-trends" role="tabpanel" aria-label="Trends" hidden>
+      <div class="hero small">
+        <h1 class="hero-title">Trends</h1>
+        <p class="hero-sub">How your money moves over time.</p>
+        <div class="segmented range" id="trend-range" role="group" aria-label="Range">
+          <button data-months="6">6 months</button>
+          <button data-months="12" class="on">12 months</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Money in and out</h2>
+          <span class="legend-inline"><span class="key bar-key"></span>Spent<span class="key line-key"></span>Came in</span></div>
+        <div class="tiles-inline" id="flow-stats"></div>
+        <div class="chart tall" id="flow-chart" data-label="Spending and income by month"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Categories over time</h2><span class="muted">Tap a category to show or hide it</span></div>
+        <div class="chips trend-chips" id="trend-chips"></div>
+        <div class="chart tall" id="cat-chart" data-label="Spending per category by month"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>By day of the week</h2><span class="muted">Average per day</span></div>
+        <div class="chart" id="weekday-chart" data-label="Average spending by weekday"></div>
       </div>
     </section>
 
