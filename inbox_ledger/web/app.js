@@ -356,29 +356,6 @@ function renderStats(s) {
     `${plural(s.uncategorized, "transaction")} ${s.uncategorized === 1 ? "needs" : "need"} a category. Teach Ledger once and it remembers.`;
 }
 
-function renderPayLater(s) {
-  const el = $("#paylater");
-  const pl = (s.pay_later || [])[0];
-  el.hidden = !pl;
-  if (!pl) return;
-  const orders = pl.open_orders.slice(0, 6), stores = pl.stores.slice(0, 6);
-  el.innerHTML = `
-    <div class="card-head"><h2>Pay later</h2><button class="link" id="pl-see">See ${esc(pl.provider)} payments</button></div>
-    <div class="pl-top">
-      <div><p>Paid with ${esc(pl.provider)} this month</p><strong>${money(pl.paid)}</strong>
-        <small>${plural(pl.payments, "instalment")}, counted under the real store</small></div>
-      <div><p>Still to pay</p><strong>${money(pl.owed)}</strong>
-        <small>Across ${plural(pl.open_orders.length, "open order")} · estimated from ${esc(pl.provider)}’s emails</small></div>
-    </div>
-    <div class="pl-cols">
-      <div><h3>This month by store</h3><ul class="pl-list">${stores.map((x) =>
-        `<li><span>${esc(x.store)}</span><span class="amt">${money(x.total)}</span></li>`).join("") || `<li class="muted">No instalments this month.</li>`}</ul></div>
-      <div><h3>Open orders</h3><ul class="pl-list">${orders.map((o) =>
-        `<li><span>${esc(o.store || "Order")}<small>${o.next_due ? `Next payment ${esc(o.next_due)}` : o.instalments ? `${o.instalments} instalments` : ""}</small></span><span class="amt">${money(o.remaining)}</span></li>`).join("") || `<li class="muted">Nothing left to pay.</li>`}</ul></div>
-    </div>`;
-  $("#pl-see").addEventListener("click", () => { state.cat = `${VIA}${pl.provider}`; go("activity"); });
-}
-
 function renderDaily(s) {
   const [y, m] = s.month.split("-").map(Number);
   const days = new Date(y, m, 0).getDate();
@@ -1136,7 +1113,7 @@ async function loadMonth() {
   const s = state.summary = await api(`/api/summary?month=${state.month}`);
   renderHero(s); renderSource();
   if (empty) return;
-  renderCategories(s); renderLeft(s); renderStats(s); renderPayLater(s); renderBudgets(s); renderMerchants(s);
+  renderCategories(s); renderLeft(s); renderStats(s); renderBudgets(s); renderMerchants(s);
   if (state.view === "overview") renderCharts();
 }
 
