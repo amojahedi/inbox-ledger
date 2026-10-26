@@ -499,6 +499,129 @@ def wishlist_order(body: WishOrder):
 def wishlist_bought(wish_id: int, body: WishBought):
     """Move a wish to the Bought list (bought=false moves it back). Creates no transaction."""
     return _wishlist_call(wishlist.set_bought, wish_id, body.bought)
+# ---- plan: the days ahead ------------------------------------------------------
+
+import re  # noqa: E402
+from datetime import date as Day  # noqa: E402
+
+from . import plan as _plan  # noqa: E402
+
+
+class PlanItem(BaseModel):
+    name: str
+    amount: float
+    date: Day
+    category: str = "other"
+
+
+class PlanItemPatch(BaseModel):
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    date: Optional[Day] = None
+    category: Optional[str] = None
+
+
+class PlanOverride(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[Day] = None
+    state: Optional[str] = None  # "skip" (won't happen), "include" (will, after all) or None (as detected)
+
+
+class PlanAmount(BaseModel):
+    month: str
+    amount: Optional[float] = None  # None goes back to the suggestion
+
+
+def _plan_month(month: str) -> str:
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month or ""):
+        raise HTTPException(400, "month must look like 2026-10")
+    return month
+
+
+def _plan_amount(v: Optional[float]) -> Optional[float]:
+    if v is not None and not (0 <= v < 1e9):
+        raise HTTPException(400, "amount must be zero or more")
+    return v
+
+
+def _plan_category(st: Store, key: Optional[str]) -> None:
+    if key is not None and key not in st.categories.by_key:
+        raise HTTPException(400, "unknown category")
+
+
+@app.get("/api/plan")
+def get_plan(month: str, today: Optional[Day] = None):
+    p = _plan.plan(S(), _plan_month(month), today)
+    for x in p.get("items", []) + p.get("paid", []):
+        x["brand"] = _brand(x["merchant_key"], x.get("merchant_kind") or x.get("kind", "")) if x.get("merchant_key") else None
+    return p
+
+
+@app.post("/api/plan/items")
+def add_plan_item(body: PlanItem):
+    st = S()
+    name = " ".join(body.name.split())[:80]
+    if not name:
+        raise HTTPException(400, "name is required")
+    _plan_amount(body.amount)
+    _plan_category(st, body.category)
+    return _plan.add_item(st, name, body.amount, body.date.isoformat(), body.category)
+
+
+@app.patch("/api/plan/items/{item_id}")
+def edit_plan_item(item_id: int, body: PlanItemPatch):
+    st = S()
+    _plan_amount(body.amount)
+    _plan_category(st, body.category)
+    name = " ".join(body.name.split())[:80] if body.name is not None else None
+    if name == "":
+        raise HTTPException(400, "name is required")
+    item = _plan.update_item(st, item_id, name=name, amount=body.amount,
+                             date=body.date.isoformat() if body.date else None, category=body.category)
+    if not item:
+        raise HTTPException(404, "planned item not found")
+    return item
+
+
+@app.delete("/api/plan/items/{item_id}")
+def delete_plan_item(item_id: int):
+    if not _plan.delete_item(S(), item_id):
+        raise HTTPException(404, "planned item not found")
+    return {"ok": True}
+
+
+@app.put("/api/plan/expected/{key:path}")
+def override_expected(key: str, body: PlanOverride):
+    """Change a detected charge for its month: amount, date, or skip it ("won't happen this month")."""
+    kind, _, rest = key.partition(":")
+    month = rest.rsplit(":", 1)[-1][:7]
+    if kind not in ("rec", "bnpl") or len(month) != 7:
+        raise HTTPException(400, "not a detected item")
+    if body.state not in (None, "skip", "include"):
+        raise HTTPException(400, "state must be skip, include or null")
+    _plan.set_override(S(), key, _plan_month(month), _plan_amount(body.amount),
+                       body.date.isoformat() if body.date else None, body.state)
+    return {"ok": True}
+
+
+@app.put("/api/plan/allowances/{category}")
+def set_plan_allowance(category: str, body: PlanAmount):
+    st = S()
+    _plan_category(st, category)
+    _plan.set_allowance(st, _plan_month(body.month), category, _plan_amount(body.amount))
+    return {"ok": True}
+
+
+@app.put("/api/plan/goal")
+def set_plan_goal(body: PlanAmount):
+    _plan.set_goal(S(), _plan_month(body.month), _plan_amount(body.amount))
+    return {"ok": True}
+
+
+@app.post("/api/plan/reset")
+def reset_plan(month: str):
+    _plan.reset(S(), _plan_month(month))
+    return {"ok": True}
 
 
 # ---- dashboard ----------------------------------------------------------------

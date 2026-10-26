@@ -25,6 +25,7 @@
         <button role="tab" data-view="overview" aria-selected="true" aria-controls="view-overview">Overview</button>
         <button role="tab" data-view="activity" aria-controls="view-activity">Activity</button>
         <button role="tab" data-view="trends" aria-controls="view-trends">Trends</button>
+        <button role="tab" data-view="plan" aria-controls="view-plan">Plan</button>
         <button role="tab" data-view="wishlist" aria-controls="view-wishlist">Wishlist</button>
         <button role="tab" data-view="rules" aria-controls="view-rules">Rules</button>
       </nav>
@@ -174,6 +175,8 @@
       </div>
     </section>
 
+    <!-- Plan: the days ahead (filled by plan.js) -->
+    <section class="view" id="view-plan" role="tabpanel" aria-label="Plan" hidden></section>
     <!-- Wishlist (filled by wishlist.js) -->
     <section class="view" id="view-wishlist" role="tabpanel" aria-label="Wishlist" hidden></section>
 
@@ -370,6 +373,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>
+  <script src="plan.js"></script>
   <script src="wishlist.js"></script>
 </body>
 </html>

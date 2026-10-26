@@ -9,7 +9,7 @@ const INTERNAL = "__internal";  // chip key: moves between your own accounts (hi
 const VIA = "__via:";           // chip key prefix: charges paid through a pay-later provider
 const SETTLED = "__settled";    // chip key: transfers that cancelled out (hidden from "All")
 const HIDDEN = "__hidden";      // chip key: transactions marked "didn't happen" (hidden from "All")
-const VIEWS = ["overview", "activity", "trends", "wishlist", "rules", "settings", "category"];
+const VIEWS = ["overview", "activity", "trends", "plan", "wishlist", "rules", "settings", "category"];
 const REPO = "https://github.com/amojahedi/inbox-ledger";
 const state = { meta: null, month: null, view: "overview", summary: null, txs: [], cat: null, q: "", editing: null,
   noLogo: new Set(), settings: null };
@@ -1136,6 +1136,7 @@ function go(view) {
   if (view === "trends") loadTrends();
   if (view === "wishlist") window.loadWishlist?.();
   if (view === "category") loadCategory();
+  if (view === "plan") window.loadPlan?.();
   if (view === "overview" && state.summary) renderCharts();
   scrollTo({ top: 0 });
 }
@@ -1161,6 +1162,7 @@ async function loadMonth() {
   renderHero(s); renderSource();
   if (empty) return;
   renderCategories(s); renderLeft(s); renderStats(s); renderBudgets(s); renderMerchants(s);
+  window.renderComingUp?.(s);
   if (state.view === "overview") renderCharts();
 }
 
