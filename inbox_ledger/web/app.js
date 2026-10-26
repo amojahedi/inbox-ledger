@@ -373,7 +373,7 @@ function renderStats(s) {
       : ["Biggest day", biggest ? money(biggest.total) : "—", biggest ? shortDate(biggest.day + "T00:00") : ""],
     ["Transactions", nf0.format(s.count), s.top_merchants.length ? `Most at ${esc(s.top_merchants[0].merchant)}` : ""],
     ["Biggest purchase", s.biggest ? money(s.biggest.amount_base) : "—", s.biggest ? esc(s.biggest.merchant) : ""],
-    ["Top category", topCat ? esc(catName(topCat.category)) : "—", topCat ? `${money(topCat.total)} · ${Math.round((topCat.total / (s.spent || 1)) * 100)}% of spending` : ""],
+    ["Top category", topCat ? esc(catName(topCat.category)) : "—", topCat ? `${money(topCat.total)} · ${percents(s.by_category.map((c) => c.total))[0]}% of spending` : ""],
     ["Most visited", regular ? esc(regular.merchant) : "—", regular ? `${plural(regular.count, "time")} · ${money(regular.total)}` : ""],
   ];
   $("#stats").innerHTML = tiles.map(([p, v, sm]) => `<div class="stat"><p>${p}</p><strong>${v}</strong><small>${sm}</small></div>`).join("");
