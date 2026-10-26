@@ -5,9 +5,10 @@ ledger each keep their own list. Nothing here creates or changes a transaction.
 
 How the prediction works
 ------------------------
-* Saving pace = the average of (money in − money spent) over the last three *complete* months that
-  had income (fewer if that is all there is). Moves between your own accounts count as neither.
-  With no income at all, the user can type their own monthly figure instead.
+* Saving pace = what you keep a month: the average of (came in − spent) over the last three *complete*
+  months that had income (fewer if that is all there is). It is shown as its two parts, saved (net moves
+  to your own savings, `summary.moved`) + left (`summary.left`), so it never reads as more savings than
+  the Overview shows. With no income at all, the user can type their own monthly figure instead.
 * "Already saved" is money set aside for wishes today. It covers wishes in priority order.
 * Wishes are funded cumulatively in priority order: wish k is ready once
   saved + pace × months ≥ price₁ + … + priceₖ.
@@ -232,7 +233,7 @@ def _month(d: date) -> str:
 
 
 def saving_pace(store, today: Optional[date] = None) -> dict:
-    """Average monthly (money in − money spent) over the last complete months that had income."""
+    """Average monthly keep (came in − spent = saved + left) over the last complete months that had income."""
     today = today or date.today()
     current = _month(today)
     months = [m for m in store.months() if m["month"] < current]
@@ -242,14 +243,19 @@ def saving_pace(store, today: Optional[date] = None) -> dict:
         months = months[1:]
     used = [m for m in months if (m["received"] or 0) > 0][-PACE_MONTHS:]
     rows = [{"month": m["month"], "in": round(m["received"], 2), "out": round(m["spent"], 2),
-             "saved": round(m["received"] - m["spent"], 2)} for m in used]
+             "saved": round(m.get("moved") or 0, 2),
+             "left": round(m["received"] - m["spent"] - (m.get("moved") or 0), 2),
+             "keep": round(m["received"] - m["spent"], 2)} for m in used]
     if not rows:
-        return {"amount": None, "months": [], "avg_in": None, "avg_out": None}
+        return {"amount": None, "months": [], "avg_in": None, "avg_out": None, "avg_saved": None, "avg_left": None}
     n = len(rows)
-    # Whole units, so the sum shown on screen ("30,000 in − 21,500 out = 8,500") always adds up.
+    # Whole units, so the sums shown on screen ("30,000 came in − 13,900 spent", "8,000 saved + 8,100 left")
+    # always add up to the same figure.
     avg_in = round(sum(r["in"] for r in rows) / n)
     avg_out = round(sum(r["out"] for r in rows) / n)
-    return {"amount": float(avg_in - avg_out), "months": rows, "avg_in": avg_in, "avg_out": avg_out}
+    avg_saved = round(sum(r["saved"] for r in rows) / n)
+    return {"amount": float(avg_in - avg_out), "months": rows, "avg_in": avg_in, "avg_out": avg_out,
+            "avg_saved": avg_saved, "avg_left": avg_in - avg_out - avg_saved}
 
 
 def _categories(store, months: list[str]) -> dict[str, float]:
