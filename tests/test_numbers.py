@@ -228,3 +228,28 @@ def test_months_and_summary_count_the_same_rows(store):
                         transfer_receipt("t1", kind="Own Account", src="7710", amount="500.00")])
     store.rebuild()
     assert store.months()[0]["count"] == store.summary("2026-10")["count"] == 3 == len(store.transactions(internal="hide"))
+
+
+def test_wishlist_pace_reads_the_same_numbers_as_the_overview(client):
+    """What you keep = saved + left, month for month the Overview's own figures; the tip's average matches Trends."""
+    from datetime import date
+    from inbox_ledger import wishlist
+    from inbox_ledger import api
+    st = api.S()
+    wish = wishlist.add(st.db, {"name": "A bicycle", "price": 120000})  # far enough away for a tip to show
+    try:
+        p = wishlist.plan(st, date(2026, 10, 26))
+    finally:
+        wishlist.delete(st.db, wish["id"])
+    auto = p["pace"]["auto"]
+    assert [m["month"] for m in auto["months"]] == ["2026-07", "2026-08", "2026-09"]
+    for m in auto["months"]:
+        s = _summary(client, m["month"])
+        assert (m["in"], m["out"], m["saved"], m["left"]) == (s["received"], s["spent"], s["moved"], s["left"])
+        assert m["keep"] == round(m["saved"] + m["left"], 2)
+    assert auto["avg_saved"] == 8000 and auto["avg_saved"] + auto["avg_left"] == auto["amount"] == p["pace"]["amount"]
+    assert auto["avg_in"] - auto["avg_out"] == auto["amount"]
+    tip = p["tip"]
+    tr = client.get("/api/trends", params={"month": "2026-09", "months": 3}).json()
+    assert tip and tip["monthly"] == pytest.approx(sum(tr["categories"][tip["category"]]) / 3, abs=0.01)
+    assert tip["new_pace"] == pytest.approx(p["pace"]["amount"] + tip["cut"], abs=0.01)
