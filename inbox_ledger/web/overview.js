@@ -130,14 +130,14 @@ function renderHero(s) {
   if (s.received > 0) {
     out.push(`<span class="nowrap">${money(s.received)} came in</span>`);
     // Saved = what you moved into your own savings; left = came in − spent − saved.
-    if (s.moved > 0) out.push(`<span class="nowrap delta-down">${money(s.moved)} saved</span>`);
+    if (s.moved > 0) out.push(`<span class="nowrap delta-down">${money(s.moved)} saved</span>${defHelp("saved")}`);
     const left = typeof s.left === "number" ? s.left : s.received - s.spent - (s.moved || 0);
-    out.push(`<span class="nowrap ${left < 0 ? "delta-up" : ""}">${left < 0 ? `${money(-left)} over` : `${money(left)} left`}</span>`);
+    out.push(`<span class="nowrap ${left < 0 ? "delta-up" : ""}">${left < 0 ? `${money(-left)} over` : `${money(left)} left`}</span>${defHelp("left")}`);
   }
   $("#hero-sub").innerHTML = out.join(" · ") || "&nbsp;";
   const split = splitOf(s);
   $("#hero-split").innerHTML = s.spent > 0 && split.fixed > 0
-    ? `<span class="nowrap">${money(split.fixed)} fixed</span> · <span class="nowrap">${money(split.everyday)} everyday</span>` : "";
+    ? `<span class="nowrap">${money(split.fixed)} fixed</span> · <span class="nowrap">${money(split.everyday)} everyday</span>${defHelp("everyday")}` : "";
 }
 
 function renderSource() {

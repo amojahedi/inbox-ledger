@@ -78,12 +78,12 @@
   function renderCard() {
     const el = document.getElementById("coming-up");
     if (!el) return;
-    const list = P && P.status !== "past" && P.month === state.month ? upcoming() : [];
+    const list = P && P.status !== "past" && P.month === planTarget(state.month).month ? upcoming() : [];
     el.hidden = !list.length;
     if (!list.length) return;
     const t = P.totals, end = dayShort(P.end);
     el.innerHTML = `
-      <div class="card-head"><h2>Coming up</h2><button class="link" data-plan-open>Open plan</button></div>
+      <div class="card-head"><h2>${P.month === state.month ? "Coming up" : `Coming up in ${esc(monthName(P.month).split(" ")[0])}`}</h2><button class="link" data-plan-open>Open plan</button></div>
       <p class="cu-verdict ${t.buffer < 0 ? "short" : ""}">${t.buffer < 0 ? `Short by <b>${money(-t.buffer)}</b> by ${esc(end)}` : `<b>${money(t.buffer)}</b> to spare by ${esc(end)}`}</p>
       <ol class="cu-list">${list.slice(0, 5).map((x) => `
         <li>${avatar(x.name, x.brand, x.direction === "in" ? "var(--good)" : color(x.category), "sm")}
