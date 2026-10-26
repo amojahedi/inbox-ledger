@@ -359,3 +359,65 @@ def test_deep_links_and_history():
     for key in ("needs-review", "between-accounts", "settled", "hidden", "paid-with:", "q="):
         assert key in app_js, key
     assert "function parseHash(" in app_js and "state.detailCat = h.detailCat" in app_js
+
+
+def test_settings_tell_the_truth_about_banks_and_the_demo():
+    js = (WEB / "settings.js").read_text()
+    assert "Not chosen yet · Ledger tries every bank profile" in js and '"Choose"' in js
+    assert "s.banks_available" not in js  # never show every profile as if it were chosen
+    assert "Start your own ledger" in js
+    for f in WEB.glob("*"):
+        if f.suffix in (".js", ".html", ".css"):
+            text = f.read_text()
+            assert "INBOX_LEDGER_DATA" not in text and "inbox_ledger demo" not in text, f.name
+
+
+def test_every_button_has_a_name(app):
+    """Every button in the served HTML has text or an aria-label."""
+    from html.parser import HTMLParser
+
+    class Buttons(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.open = None; self.bad = []; self.count = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "button":
+                self.count += 1
+                self.open = {"attrs": dict(attrs), "text": ""}
+
+        def handle_data(self, data):
+            if self.open is not None:
+                self.open["text"] += data
+
+        def handle_endtag(self, tag):
+            if tag == "button" and self.open is not None:
+                if not (self.open["text"].strip() or self.open["attrs"].get("aria-label")):
+                    self.bad.append(self.open["attrs"])
+                self.open = None
+
+    api, client, d = app
+    p = Buttons(); p.feed(client.get("/").text)
+    assert p.count > 20 and p.bad == []
+
+
+def test_onboarding_is_accessible(app):
+    api, client, d = app
+    html, settings_js, app_js, activity = (client.get("/").text, (WEB / "settings.js").read_text(),
+                                           (WEB / "app.js").read_text(), (WEB / "activity.js").read_text())
+    assert 'id="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title" aria-describedby="ob-lead"' in html
+    options = re.findall(r'<button class="row option[^>]*>', settings_js)
+    assert len(options) == 3 and all('aria-label="' in o for o in options)
+    for label in ("Connect Gmail, read-only", "Import a file", "Try the demo"):
+        assert f'aria-label="{label}"' in settings_js, label
+    assert settings_js.count('class="ob-lead" id="ob-lead"') == 4
+    assert "function setBackgroundInert(" in settings_js and "setBackgroundInert(true)" in activity
+    assert 'trapFocus($("#sheet")); trapFocus($("#onboarding"));' in app_js
+
+
+def test_phone_layout_rules():
+    css = (WEB / "styles.css").read_text()
+    phone = css[css.index("@media (max-width: 640px)"):]
+    assert ".nav .segmented button { flex: 1; min-width: 0; padding: 6px 0;" in phone
+    assert ".sheet-actions { position: sticky; bottom: 0;" in phone
+    assert "max-height: none" in phone  # the phone sheet is full height
+    assert ".chips-wrap.more::after { opacity: 1; }" in css

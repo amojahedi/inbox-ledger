@@ -570,7 +570,7 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
   body { font-size: 16px; }
   .nav-inner { grid-template-columns: 1fr auto; padding: 8px 16px; row-gap: 8px; }
   .nav .segmented { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; display: flex; }
-  .nav .segmented button { flex: 1; }
+  .nav .segmented button { flex: 1; min-width: 0; padding: 6px 0; font-size: 13px; letter-spacing: -0.015em; white-space: nowrap; }
   .month-switch span { min-width: 96px; }
   main { padding: 0 16px 64px; }
   .hero { padding: 40px 0 28px; }
@@ -597,8 +597,11 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
   .bank-grid { grid-template-columns: 1fr 1fr; justify-content: stretch; }
   .panel { padding-left: 16px; }
   .empty-state { padding: 48px 8px 72px; }
-  .sheet { top: auto; bottom: 0; left: 0; transform: none; width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; padding-bottom: calc(22px + env(safe-area-inset-bottom)); animation: rise .3s cubic-bezier(.2,.9,.3,1); }
+  /* A full-height bottom sheet; the Save row stays in reach while the form scrolls. */
+  .sheet { top: max(12px, env(safe-area-inset-top)); bottom: 0; left: 0; transform: none; width: 100%; max-height: none; border-radius: 22px 22px 0 0; padding-bottom: 0; animation: rise .3s cubic-bezier(.2,.9,.3,1); }
   .sheet-grabber { display: block; width: 36px; height: 5px; border-radius: 3px; background: var(--fill-strong); margin: -12px auto 14px; }
+  .sheet-actions { position: sticky; bottom: 0; margin: 24px -26px 0; padding: 12px 26px calc(14px + env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -0.5px 0 var(--separator); }
+  .sheet-actions .btn { flex: 1; padding-top: 12px; padding-bottom: 12px; }
   @keyframes rise { from { transform: translateY(100%); } to { transform: none; } }
 }
 
@@ -848,7 +851,7 @@ input.wl-inline-input { width: 150px; margin-top: 2px; padding: 6px 12px; font-s
 @media (max-width: 860px) {
   .nav-inner { grid-template-columns: 1fr auto; row-gap: 8px; }
   .nav .segmented { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; display: flex; }
-  .nav .segmented button { flex: 1; }
+  .nav .segmented button { flex: 1; min-width: 0; padding: 6px 0; font-size: 13px; letter-spacing: -0.015em; white-space: nowrap; }
 }
 @media (max-width: 860px) {
   .wl-pace { grid-template-columns: 1fr; gap: 22px; }
@@ -856,7 +859,6 @@ input.wl-inline-input { width: 150px; margin-top: 2px; padding: 6px 12px; font-s
   .wl-side > div:first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
-  .nav .segmented button { padding: 5px 4px; font-size: 13px; }
   .wl-big { font-size: 32px; }
   .wl-big span { font-size: 17px; }
   .wl-months { gap: 6px; }
@@ -1046,6 +1048,10 @@ details.al-more summary { color: var(--text-2); font-size: 14px; justify-content
   .plan-sheet .sheet-actions { flex-wrap: wrap; position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom)); margin: 20px -26px 0; padding: 12px 26px calc(16px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 0.5px solid var(--separator); }
   .pt-sub { white-space: normal; flex-wrap: wrap; row-gap: 0; }
   details.plan-paid summary { flex-wrap: wrap; }
-  /* Five or more tabs still fit a phone's width. */
-  .nav .segmented button { padding: 5px 4px; min-width: 0; font-size: 13px; letter-spacing: -0.01em; }
+}
+
+/* ---------- Narrow phones: six tabs on one row ---------- */
+@media (max-width: 420px) {
+  .nav-inner { padding-left: 12px; padding-right: 12px; }
+  .nav .segmented button { font-size: 12.5px; letter-spacing: -0.02em; }
 }

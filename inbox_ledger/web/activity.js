@@ -140,6 +140,7 @@ function openSheet(t, from) {
   $("#new-cat").hidden = true;
   syncSheet();
   $("#scrim").hidden = $("#sheet").hidden = false;
+  setBackgroundInert(true);
   ($(`#sheet-cats [data-cat="${t.category}"]`) || $("#sheet-cats button"))?.focus({ preventScroll: true });
 }
 
@@ -184,6 +185,7 @@ function syncSheet() {
 function closeSheet() {
   const from = state.editing?.from;
   $("#scrim").hidden = $("#sheet").hidden = true; state.editing = null;
+  setBackgroundInert(false);
   if (from?.isConnected) from.focus({ preventScroll: true });
 }
 

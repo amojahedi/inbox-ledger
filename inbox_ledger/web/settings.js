@@ -39,15 +39,18 @@ async function loadSettings() {
   gb.textContent = !g.credentials ? "Set up…" : g.connected ? "Sync now" : "Connect";
   gb.disabled = g.sync.state === "running";
   gb.classList.toggle("busy", g.sync.state === "running");
-  const chosen = s.banks.length ? s.banks : s.banks_available;
-  $("#banks-status").textContent = chosen.length ? `${chosen.join(", ")}${s.pay_later.length ? ` · plus ${s.pay_later.join(", ")} for pay later` : ""}` : "None yet";
+  // Banks: only what the user chose. With nothing chosen, Ledger tries every profile it has.
+  const seen = (state.meta.pay_later || []).filter((p) => (s.pay_later || []).includes(p));
+  $("#banks-status").textContent = s.banks.length
+    ? `${s.banks.join(", ")}${seen.length ? ` · plus ${seen.join(", ")} for pay later` : ""}`
+    : "Not chosen yet · Ledger tries every bank profile";
+  $("#banks-btn").textContent = s.banks.length ? "Change" : "Choose";
   const demoDir = s.demo_dir && !s.demo;
-  $("#demo-title").textContent = s.demo ? "You’re exploring the demo" : demoDir ? "This folder holds example data" : "Try the demo";
+  $("#demo-title").textContent = s.demo ? "You’re exploring the demo" : demoDir ? "Example data" : "Try the demo";
   $("#demo-sub").textContent = s.demo ? "Example numbers, kept apart from your own ledger." :
-    demoDir ? "It was created with “inbox_ledger demo”. Point INBOX_LEDGER_DATA at another folder for your own data." :
+    demoDir ? "Everything here is made up, so you can look around. Your own bank alerts aren’t in it yet." :
     "Six months of made-up spending to explore. Your own data isn’t touched.";
-  $("#demo-btn").textContent = s.demo ? "Leave demo" : "Open demo";
-  $("#demo-btn").hidden = demoDir;
+  $("#demo-btn").textContent = s.demo ? "Leave demo" : demoDir ? "Start your own ledger" : "Open demo";
   $$("#theme-seg button").forEach((b) => { const on = b.dataset.themeOpt === s.theme; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
   $("#currency-sel").value = s.currency;
   const sample = nf0.format(1234);
@@ -166,6 +169,11 @@ async function refreshAll() {
   if (state.view === "settings") await loadSettings();
 }
 
+// While a dialog is open, the page behind it is inert: no focus, no clicks, not read by screen readers.
+function setBackgroundInert(on) {
+  for (const el of [$("main"), $("header.nav")]) if (el) el.inert = on;
+}
+
 // ---------- welcome / setup ----------
 const ob = { step: 0, banks: new Set(), gmail: false, missing: false, result: null, busy: false, closable: true };
 const OB_STEPS = 4;
@@ -176,6 +184,7 @@ function openOnboarding(step = 0, opts = {}) {
   ob.firstRun = !state.meta.source.emails && !state.meta.settings.onboarded;
   $("#onboarding").hidden = false;
   document.body.classList.add("locked");
+  setBackgroundInert(true);
   renderOnboarding();
   api("/api/settings").then((s) => { state.settings = s; if (ob.step === 2) renderOnboarding(); }).catch(() => {});
 }
@@ -184,6 +193,8 @@ async function closeOnboarding(markDone = true) {
   $("#onboarding").hidden = true;
   ob.only = false;
   document.body.classList.remove("locked");
+  setBackgroundInert(false);
+  (state.view === "settings" ? $("#settings-btn") : $("[role=tab][aria-selected=true]"))?.focus({ preventScroll: true });
   if (markDone && !state.meta.settings.onboarded) {
     await api("/api/settings", { method: "PATCH", body: JSON.stringify({ onboarded: true }) }).catch(() => {});
   }
@@ -205,7 +216,7 @@ function stepWelcome() {
     <div class="ob-step">
       <img class="ob-app" src="icon.svg" alt="" width="88" height="88">
       <h1 id="ob-title">Welcome to Ledger</h1>
-      <p class="ob-lead">Your bank already emails you about every payment. Ledger turns those emails into a clear monthly budget.</p>
+      <p class="ob-lead" id="ob-lead">Your bank already emails you about every payment. Ledger turns those emails into a clear monthly budget.</p>
       <ul class="features">
         <li><span class="f-icon" style="color:var(--c-blue)">${icon("envelope")}</span><div><strong>Reads your bank alerts</strong><span>Card payments, transfers and income, from the emails your bank already sends.</span></div></li>
         <li><span class="f-icon" style="color:var(--c-orange)">${icon("wand")}</span><div><strong>Learns from one correction</strong><span>Change a merchant’s category once and Ledger remembers it, past and future.</span></div></li>
@@ -221,7 +232,7 @@ function stepBanks() {
     <div class="ob-step">
       <span class="ob-glyph" style="--tint:var(--c-green)">${icon("bank")}</span>
       <h1 id="ob-title">Which bank do you use?</h1>
-      <p class="ob-lead">Ledger reads the alert emails your bank sends. Choose every bank you get alerts from.</p>
+      <p class="ob-lead" id="ob-lead">Ledger reads the alert emails your bank sends. Choose every bank you get alerts from.</p>
       <div class="bank-grid">
         ${banks.map(bankTile).join("")}
         <button class="bank-tile other ${ob.missing ? "on" : ""}" aria-expanded="${ob.missing}" data-missing="1">
@@ -270,20 +281,20 @@ function stepSource() {
     <div class="ob-step">
       <span class="ob-glyph" style="--tint:var(--c-blue)">${icon("tray")}</span>
       <h1 id="ob-title">Bring in your transactions</h1>
-      <p class="ob-lead">Choose how Ledger gets your bank alerts. You can add more later in Settings.</p>
+      <p class="ob-lead" id="ob-lead">Choose how Ledger gets your bank alerts. You can add more later in Settings.</p>
       <div class="group options">
-        <button class="row option ${ob.gmail ? "open" : ""}" data-ob="gmail" aria-expanded="${ob.gmail}">
+        <button class="row option ${ob.gmail ? "open" : ""}" data-ob="gmail" aria-expanded="${ob.gmail}" aria-label="Connect Gmail, read-only">
           <span class="row-icon" style="--tint:var(--c-red)">${icon("mail")}</span>
           <span class="row-main"><span class="row-title">Connect Gmail</span><span class="row-sub">Read-only. Ledger only searches for your bank’s alerts.</span></span>
           ${icon("chevron", "chev")}
         </button>
         ${gmailPanel}
-        <button class="row option" data-ob="import">
+        <button class="row option" data-ob="import" aria-label="Import a file">
           <span class="row-icon" style="--tint:var(--c-blue)">${icon("tray")}</span>
           <span class="row-main"><span class="row-title">Import a file</span><span class="row-sub">A .mbox from Google Takeout, or a .jsonl of emails.</span></span>
           ${icon("chevron", "chev")}
         </button>
-        <button class="row option" data-ob="demo">
+        <button class="row option" data-ob="demo" aria-label="Try the demo">
           <span class="row-icon" style="--tint:var(--c-yellow)">${icon("play")}</span>
           <span class="row-main"><span class="row-title">Try the demo</span><span class="row-sub">Six months of made-up spending, kept apart from your own data.</span></span>
           ${icon("chevron", "chev")}
@@ -312,7 +323,7 @@ function stepDone() {
     <div class="ob-step">
       <span class="ob-done" aria-hidden="true">${icon("check")}</span>
       <h1 id="ob-title">${demo ? "The demo is ready" : "You’re all set"}</h1>
-      <p class="ob-lead">${esc(facts)}</p>
+      <p class="ob-lead" id="ob-lead">${esc(facts)}</p>
       <ul class="features">${tips.map(([i, c, t, s]) => `<li><span class="f-icon" style="color:${c}">${icon(i)}</span><div><strong>${t}</strong><span>${s}</span></div></li>`).join("")}</ul>
       <div class="ob-actions"><button class="btn primary large" data-ob="finish">Open Ledger</button></div>
     </div>`;

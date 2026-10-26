@@ -147,13 +147,16 @@ function wire() {
     if (!$("#sheet").hidden) closeSheet();
     else if (!$("#onboarding").hidden && $("#ob-close").style.visibility !== "hidden") closeOnboarding(true);
   });
-  // Keep keyboard focus inside the sheet while it is open.
-  $("#sheet").addEventListener("keydown", (e) => {
+  // Keep keyboard focus inside an open dialog (the sheet and the welcome flow).
+  const trapFocus = (dialog) => dialog.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
-    const f = $$("button, input, [tabindex]", $("#sheet")).filter((x) => !x.closest("[hidden]") && !x.disabled);
-    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    const f = $$("button, input, select, a[href], [tabindex]", dialog)
+      .filter((x) => !x.closest("[hidden]") && !x.disabled && x.tabIndex >= 0 && x.style.visibility !== "hidden");
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || !f.includes(document.activeElement))) { e.preventDefault(); f[f.length - 1].focus(); }
     else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
   });
+  trapFocus($("#sheet")); trapFocus($("#onboarding"));
 
   // settings
   $("#theme-seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) savePref({ theme: b.dataset.themeOpt }); });
@@ -164,7 +167,11 @@ function wire() {
   $("#import-btn").addEventListener("click", () => settingsImport());
   $("#banks-btn").addEventListener("click", () => openOnboarding(1, { only: true }));
   $("#setup-btn").addEventListener("click", () => openOnboarding(0));
-  $("#demo-btn").addEventListener("click", () => (state.settings.demo ? leaveDemo() : enterDemo().then(() => go("overview"))).catch((e) => toast(e.message)));
+  $("#demo-btn").addEventListener("click", () => {
+    if (state.settings.demo) return leaveDemo().catch((e) => toast(e.message));
+    if (state.settings.demo_dir) return openOnboarding(0);  // example data: start your own ledger
+    enterDemo().then(() => go("overview")).catch((e) => toast(e.message));
+  });
   $("#copy-path").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(state.settings.data_dir); toast("Path copied"); }
     catch { getSelection().selectAllChildren($("#data-path")); }
