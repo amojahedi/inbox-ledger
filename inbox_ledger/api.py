@@ -108,6 +108,8 @@ class Correction(BaseModel):
     note: Optional[str] = None
     remember: bool = True
     match_amount: bool = False
+    hidden: Optional[bool] = None  # true: "didn't happen", left out of every total
+    name: Optional[str] = None  # your own name for the merchant ("" restores the original)
 
 
 class NewCategory(BaseModel):
@@ -170,10 +172,12 @@ def trends(month: str, months: int = 12):
 
 @app.get("/api/transactions")
 def transactions(month: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None,
-                 internal: str = "hide", via: Optional[str] = None):
+                 internal: str = "hide", via: Optional[str] = None, show: Optional[str] = None):
     if internal not in ("hide", "only", "show"):
         raise HTTPException(400, "internal must be hide, only or show")
-    rows = S().transactions(month=month, category=category, q=q, internal=internal, via=via)
+    if show not in (None, "hidden", "settled"):
+        raise HTTPException(400, "show must be hidden or settled")
+    rows = S().transactions(month=month, category=category, q=q, internal=internal, via=via, show=show)
     for t in rows:
         t["brand"] = _brand(t["merchant_key"], t["kind"])
     return rows
@@ -187,7 +191,8 @@ def correct(tx_id: str, body: Correction):
     if body.direction and body.direction not in DIRECTIONS:
         raise HTTPException(400, "direction must be out, in or internal")
     try:
-        st.correct(tx_id, body.category, body.direction, body.note, body.remember, body.match_amount)
+        st.correct(tx_id, body.category, body.direction, body.note, body.remember, body.match_amount,
+                   body.hidden, body.name)
     except KeyError:
         raise HTTPException(404, "transaction not found")
     return {"ok": True}

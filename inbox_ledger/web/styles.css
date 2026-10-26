@@ -652,3 +652,8 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
 .budgets.cols-3 .b-left, .budgets.cols-3 .b-status { display: block; margin-left: 0; }
 .budgets.cols-3 .b-row { align-items: flex-start; }
 .legend-total { display: flex; justify-content: space-between; margin: 18px 0 0; padding-top: 14px; border-top: 0.5px solid var(--separator); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* ---------- Accuracy: refunds, settled transfers, hidden rows ---------- */
+.tx-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--fill); color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; vertical-align: 1px; white-space: nowrap; }
+.tx-badge.refund { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.tx.settled .tx-name, .tx.settled .tx-amt { color: var(--text-2); }
+.tx.gone .tx-name, .tx.gone .tx-amt { text-decoration: line-through; color: var(--text-3); }

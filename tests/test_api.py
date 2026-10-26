@@ -124,3 +124,23 @@ def test_category_detail_compares_places(client, current):
     assert totals == sorted(totals, reverse=True)
     assert {"visits", "average", "previous", "brand"} <= set(d["places"][0])
     assert 1 <= len(d["trend"]) <= 6 and d["trend"][-1]["month"] == current
+
+
+def test_hide_and_rename_through_the_api(client, current):
+    before = client.get("/api/summary", params={"month": current}).json()
+    tx = next(t for t in client.get("/api/transactions", params={"month": current}).json() if t["direction"] == "out")
+    assert client.patch(f"/api/transactions/{tx['id']}", json={"hidden": True, "remember": False}).json() == {"ok": True}
+    after = client.get("/api/summary", params={"month": current}).json()
+    assert after["spent"] == pytest.approx(before["spent"] - tx["amount_base"], abs=0.01)
+    assert tx["id"] not in {t["id"] for t in client.get("/api/transactions", params={"month": current}).json()}
+    hidden = client.get("/api/transactions", params={"month": current, "show": "hidden", "internal": "show"}).json()
+    assert [t["id"] for t in hidden] == [tx["id"]]
+    assert client.get("/api/transactions", params={"show": "nonsense"}).status_code == 400
+    client.patch(f"/api/transactions/{tx['id']}", json={"hidden": False, "remember": False})
+    assert client.get("/api/summary", params={"month": current}).json()["spent"] == before["spent"]
+
+    assert client.patch(f"/api/transactions/{tx['id']}", json={"name": "Toll gate"}).json() == {"ok": True}
+    named = client.get("/api/transactions", params={"q": "toll gate"}).json()
+    assert named and {t["merchant"] for t in named} == {"Toll gate"} and tx["id"] in {t["id"] for t in named}
+    client.patch(f"/api/transactions/{tx['id']}", json={"name": ""})
+    assert client.get("/api/transactions", params={"q": "toll gate"}).json() == []

@@ -7,6 +7,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 const INTERNAL = "__internal";  // chip key: moves between your own accounts (hidden from "All")
 const VIA = "__via:";           // chip key prefix: charges paid through a pay-later provider
+const SETTLED = "__settled";    // chip key: transfers that cancelled out (hidden from "All")
+const HIDDEN = "__hidden";      // chip key: transactions marked "didn't happen" (hidden from "All")
 const VIEWS = ["overview", "activity", "trends", "rules", "settings", "category"];
 const REPO = "https://github.com/amojahedi/inbox-ledger";
 const state = { meta: null, month: null, view: "overview", summary: null, txs: [], cat: null, q: "", editing: null,
@@ -218,18 +220,18 @@ async function loadCategory() {
   ].filter(Boolean).join(" · ");
   $("#cat-places-title").textContent = key === "dining" ? "Restaurants compared" : "Places compared";
   $("#cat-places-note").textContent = d.places.length ? "Bar = share of this month" : "";
-  const top = Math.max(1, ...d.places.map((p) => p.total));
+  const top = Math.max(1, ...d.places.map((p) => p.total));  // a place that only refunded has a negative total
   $("#cat-places").innerHTML = d.places.map((p, i) => {
     const diff = p.previous ? Math.round(((p.total - p.previous) / p.previous) * 100) : null;
     return `<li>
       <span class="rank">${i + 1}</span>${avatar(p.merchant, p.brand, color(key), "sm")}
       <span class="p-main"><div class="p-name">${esc(p.merchant)}</div>
         <div class="p-sub">${plural(p.visits, "visit")} · ${money(p.average)} each${diff === null ? " · new" : ` · <span class="${diff > 0 ? "up" : "down"}">${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)}%</span>`}</div>
-        <div class="p-track"><div class="p-fill" style="width:${(p.total / top) * 100}%;background:${color(key)}"></div></div></span>
-      <span class="p-amt">${money(p.total)}<small>${Math.round((p.total / (d.total || 1)) * 100)}%</small></span></li>`;
+        <div class="p-track"><div class="p-fill" style="width:${Math.max(0, p.total / top) * 100}%;background:${color(key)}"></div></div></span>
+      <span class="p-amt">${money(p.total)}<small>${d.total > 0 ? `${Math.round((p.total / d.total) * 100)}%` : ""}</small></span></li>`;
   }).join("") || `<li class="muted">Nothing in ${esc(catName(key).toLowerCase())} this month.</li>`;
   barChart($("#cat-trend"), d.trend.map((m) => ({
-    label: monthName(m.month, "short"), value: m.total, hi: m.month === state.month, tip: `<b>${money(m.total)}</b>${monthName(m.month)}`,
+    label: monthName(m.month, "short"), value: Math.max(0, m.total), hi: m.month === state.month, tip: `<b>${money(m.total)}</b>${monthName(m.month)}`,
   })));
 }
 
@@ -257,7 +259,7 @@ function renderTrends() {
   ].map(([p, v]) => `<div><p>${p}</p><strong>${v}</strong></div>`).join("");
   lineChart($("#flow-chart"), labels,
     sum(t.received) ? [{ name: "Came in", values: t.received, cls: "income", dots: true }] : [],
-    { bars: { name: "Spent", values: t.spent }, tipTitle: (i) => { const l = t.received[i] - t.spent[i] - moved[i];
+    { bars: { name: "Spent", values: t.spent.map((v) => Math.max(0, v)) }, tipTitle: (i) => { const l = t.received[i] - t.spent[i] - moved[i];
       return `${full(i)} · saved ${money(moved[i])} · ${l >= 0 ? `${money(l)} left` : `${money(-l)} over`}`; } });
 
   const keys = Object.keys(t.categories).sort((a, b) => sum(t.categories[b]) - sum(t.categories[a]));
@@ -270,7 +272,7 @@ function renderTrends() {
     renderTrends();
   }));
   lineChart($("#cat-chart"), labels,
-    keys.map((k) => ({ name: catName(k), values: t.categories[k], color: color(k), off: !state.trendOn.has(k) })),
+    keys.map((k) => ({ name: catName(k), values: t.categories[k].map((v) => Math.max(0, v)), color: color(k), off: !state.trendOn.has(k) })),
     { tipTitle: full });
 
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], top = Math.max(...t.weekday);
@@ -314,15 +316,16 @@ function renderSource() {
 }
 
 function renderCategories(s) {
-  const total = s.spent || 1;
-  $("#stackbar").innerHTML = s.by_category.map((c) =>
+  // Refunds can leave a category below zero: it stays in the list but takes no share of the bar.
+  const total = s.by_category.reduce((a, c) => a + Math.max(0, c.total), 0) || 1;
+  $("#stackbar").innerHTML = s.by_category.filter((c) => c.total > 0).map((c) =>
     `<span style="flex-grow:${c.total};background:${color(c.category)}"></span>`).join("");
   $("#stackbar").setAttribute("aria-label", s.by_category.map((c) => `${catName(c.category)} ${money(c.total)}`).join(", ") || "No spending");
   $("#legend").innerHTML = s.by_category.map((c) => `
-    <li><button class="lg" data-cat="${esc(c.category)}" aria-label="${esc(catName(c.category))}, ${money(c.total)}, ${Math.round((c.total / total) * 100)}%. Show transactions">
+    <li><button class="lg" data-cat="${esc(c.category)}" aria-label="${esc(catName(c.category))}, ${money(c.total)}${c.total > 0 ? `, ${Math.round((c.total / total) * 100)}%` : ""}. Show transactions">
       <span class="dot" style="background:${color(c.category)}"></span>
       <span class="lg-name">${esc(catName(c.category))}</span>
-      <span class="lg-val">${money(c.total)}<span class="lg-pct">${Math.round((c.total / total) * 100)}%</span></span>
+      <span class="lg-val">${money(c.total)}<span class="lg-pct">${c.total > 0 ? `${Math.round((c.total / total) * 100)}%` : ""}</span></span>
     </button></li>`).join("") || `<li class="muted">Nothing spent this month.</li>`;
   $("#legend-total").innerHTML = s.by_category.length
     ? `<span>Total</span><span>${money(s.by_category.reduce((a, c) => a + c.total, 0))}</span>` : "";
@@ -370,7 +373,7 @@ function renderDaily(s) {
   const data = Array.from({ length: days }, (_, i) => {
     const day = `${s.month}-${String(i + 1).padStart(2, "0")}`;
     const v = map[day] || 0;
-    return { label: String(i + 1), value: v, tip: `<b>${money(v)}</b>${dayName(day)}` };
+    return { label: String(i + 1), value: Math.max(0, v), tip: `<b>${money(v)}</b>${dayName(day)}` };
   });
   const active = data.filter((d) => d.value > 0).length;
   $("#daily-note").textContent = `${plural(active, "active day")}`;
@@ -382,7 +385,7 @@ function renderTrend(s) {
   const idx = all.findIndex((x) => x.month === s.month);
   const slice = all.slice(Math.max(0, idx - 5), idx + 1);
   const data = slice.map((x) => ({
-    label: monthName(x.month, "short"), value: x.spent, hi: x.month === s.month, month: x.month,
+    label: monthName(x.month, "short"), value: Math.max(0, x.spent), hi: x.month === s.month, month: x.month,
     tip: `<b>${money(x.spent)}</b>${monthName(x.month)}`,
   }));
   barChart($("#trend-chart"), data, { onClick: (d) => setMonth(d.month) });
@@ -445,7 +448,7 @@ function renderBudgets(s) {
     .filter((k) => !["income"].includes(k) && (spent[k] || s.budgets[k]));
   $("#budgets").innerHTML = keys.map((k) => {
     const used = spent[k] || 0, limit = s.budgets[k];
-    const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+    const pct = limit ? Math.max(0, Math.min(100, (used / limit) * 100)) : 0;
     const over = limit && used > limit;
     return `<li>
       <div class="b-row">
@@ -487,7 +490,8 @@ function renderChips() {
   const chips = [{ key: null, name: "All" }, { key: "other", name: "Needs review", color: "gray" },
     ...(state.meta.pay_later || []).map((p) => ({ key: `${VIA}${p}`, name: `Paid with ${p}`, color: "gray" })),
     ...state.meta.categories.filter((c) => c.key !== "other").map((c) => ({ ...c, name: catName(c.key) })),
-    { key: INTERNAL, name: "Between my accounts", color: "gray" }];
+    { key: INTERNAL, name: "Between my accounts", color: "gray" },
+    { key: SETTLED, name: "Settled", color: "gray" }, { key: HIDDEN, name: "Show hidden", color: "gray" }];
   $("#chips").innerHTML = chips.map((c) =>
     `<button class="chip ${state.cat === c.key ? "on" : ""}" aria-pressed="${state.cat === c.key}" data-cat="${c.key ?? ""}">${c.key ? `<span class="dot" style="background:var(--c-${c.color})"></span>` : ""}${esc(c.name)}</button>`).join("");
   $$(".chip").forEach((b) => b.addEventListener("click", () => { state.cat = b.dataset.cat || null; loadActivity(); }));
@@ -500,6 +504,8 @@ function activityEmpty() {
   if (state.q) return [`No results for “${state.q}”`, `Nothing in ${month} matches. Try another month or a shorter search.`];
   if (state.cat === "other") return ["All caught up", `Every transaction in ${month} has a category.`];
   if (state.cat === INTERNAL) return ["No moves between your accounts", `Transfers between your own accounts in ${month} would appear here.`];
+  if (state.cat === SETTLED) return ["Nothing settled", `Money you sent someone and got back from them within 45 days would appear here, left out of your totals.`];
+  if (state.cat === HIDDEN) return ["Nothing hidden", `Transactions you mark as “didn’t happen” in ${month} would appear here, left out of your totals.`];
   if (state.cat?.startsWith(VIA)) return ["No pay-later payments", `Nothing was paid with ${state.cat.slice(VIA.length)} in ${month}.`];
   if (state.cat) return [`No ${catName(state.cat).toLowerCase()} in ${month}`, "Pick another category or month."];
   return [`Nothing in ${month}`, "Pick another month."];
@@ -515,18 +521,21 @@ function renderActivity() {
   }
   let html = "";
   for (const [day, list] of groups) {
-    const out = list.filter((t) => t.direction === "out").reduce((a, t) => a + t.amount_base, 0);
-    html += `<li class="tx-day"><span>${dayName(day)}</span><span>${out ? money(out) : ""}</span></li>`;
+    const net = list.reduce((a, t) => a + (t.spend || 0), 0);  // what the day cost, refunds taken off
+    html += `<li class="tx-day"><span>${dayName(day)}</span><span>${net ? `${net < 0 ? "−" : ""}${money(Math.abs(net))}` : ""}</span></li>`;
     for (const t of list) {
+      const refund = t.extra?.refund, settled = !!t.extra?.settled, gone = !!t.hidden;
       const sign = t.direction === "in" ? "+" : t.direction === "internal" ? "" : "−";
       const fx = t.currency !== state.meta.currency ? `<small>${esc(t.currency)} ${nf2.format(t.amount)}</small>` : "";
       const tag = t.category_source === "learned" ? ` · <span class="learned">Learned</span>` : t.category_source === "manual" ? ` · <span class="learned">Edited</span>` : "";
+      const status = gone ? "Didn’t happen" : settled ? "Settled" : refund ? "Refund" : t.extra?.refunded_by ? "Refunded" : t.extra?.payback ? "Paid back" : "";
       const sub = (t.direction === "internal" ? "Between your accounts" : catName(t.category)) + (t.extra?.via ? ` · via ${t.extra.via}` : "");
       const fallback = t.direction === "internal" ? "var(--c-gray)" : color(t.category);
-      const label = `${t.merchant}, ${sign === "−" ? "spent" : sign === "+" ? "received" : "moved"} ${money(t.amount_base, true)}, ${sub}, ${timeOf(t.occurred_at)}`;
-      html += `<li class="tx" data-id="${t.id}" tabindex="0" role="button" aria-label="${esc(label)}">
+      const verb = sign === "−" ? "spent" : refund ? "refunded" : sign === "+" ? "received" : "moved";
+      const label = `${t.merchant}, ${verb} ${money(t.amount_base, true)}, ${status ? `${status}, ` : ""}${sub}, ${timeOf(t.occurred_at)}`;
+      html += `<li class="tx ${gone ? "gone" : settled ? "settled" : ""}" data-id="${t.id}" tabindex="0" role="button" aria-label="${esc(label)}">
         ${avatar(t.merchant, t.brand, fallback)}
-        <span class="tx-main"><span class="tx-name">${esc(t.merchant)}</span><span class="tx-sub">${esc(sub)} · ${timeOf(t.occurred_at)}${tag}${t.note ? ` · ${esc(t.note)}` : ""}</span></span>
+        <span class="tx-main"><span class="tx-name">${esc(t.merchant)}${status ? ` <span class="tx-badge ${refund || t.extra?.refunded_by ? "refund" : ""}">${status}</span>` : ""}</span><span class="tx-sub">${esc(sub)} · ${timeOf(t.occurred_at)}${tag}${t.note ? ` · ${esc(t.note)}` : ""}</span></span>
         <span class="tx-amt ${t.direction}">${sign}${nf2.format(t.amount_base)}${fx}</span>
       </li>`;
     }
@@ -550,6 +559,9 @@ function openSheet(t, from) {
   $("#sheet-amount").textContent = money(t.amount_base, true);
   $("#sheet-merchant").textContent = t.merchant;
   $("#sheet-note").value = t.note || "";
+  $("#sheet-name").value = t.merchant;
+  $("#sheet-name").placeholder = t.extra?.original_merchant || t.merchant_raw;
+  $("#sheet-hidden").checked = !!t.hidden;
   $("#sheet-remember").checked = true;
   $("#sheet-match-amount").checked = false;
   $("#sheet-amount-match").textContent = `${t.currency} ${nf2.format(t.amount)}`;
@@ -557,6 +569,10 @@ function openSheet(t, from) {
   const meta = [["From email", t.merchant_raw], ["Account", t.account ? `•••• ${t.account}` : "—"], ["Bank", t.bank]];
   if (t.currency !== state.meta.currency) meta.push(["Charged", `${t.currency} ${nf2.format(t.amount)}`]);
   if (t.extra?.via) meta.push(["Paid with", t.extra.order ? `${t.extra.via} · order ${t.extra.order}` : t.extra.via]);
+  if (t.extra?.refund) meta.push(["Refund", t.extra.refund_of ? "Taken off the purchase it undoes" : "No earlier purchase found; taken off this merchant’s spending"]);
+  if (t.extra?.refunded_by) meta.push(["Refunded", "A later refund is taken off this purchase"]);
+  if (t.extra?.settled) meta.push(["Settled", "Cancelled out by a matching transfer; not counted"]);
+  if (t.extra?.payback) meta.push(["Paid back", "Taken off what you sent this person"]);
   $("#sheet-meta").innerHTML = meta.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
   renderSheetCats();
   $("#new-cat").hidden = true;
@@ -614,7 +630,10 @@ async function saveSheet() {
   const remember = $("#sheet-remember").checked;
   const matchAmount = remember && $("#sheet-match-amount").checked;
   const note = $("#sheet-note").value.trim();
+  const name = $("#sheet-name").value.trim(), hidden = $("#sheet-hidden").checked;
   const body = { remember, match_amount: matchAmount };
+  if (name !== t.merchant) body.name = name === (t.extra?.original_merchant ?? t.merchant) ? "" : name;
+  if (hidden !== !!t.hidden) body.hidden = hidden;
   if (category !== t.category) body.category = category;
   if (direction !== t.direction) body.direction = direction;
   if (note !== (t.note || "")) body.note = note;
@@ -623,7 +642,9 @@ async function saveSheet() {
   closeSheet();
   const what = direction === "internal" ? "a transfer between your accounts" : catName(category);
   const at = matchAmount ? ` at ${t.currency} ${nf2.format(t.amount)}` : "";
-  toast(remember && (body.category || body.direction) ? `Got it. ${t.merchant}${at} will always be ${what}.` : "Saved");
+  toast("hidden" in body ? (hidden ? "Left out of your totals" : "Back in your totals")
+    : remember && (body.category || body.direction) ? `Got it. ${t.merchant}${at} will always be ${what}.`
+    : remember && body.name ? `Renamed everywhere to ${body.name}` : "Saved");
   state.meta = await api("/api/meta");
   await Promise.all([loadMonth(), state.view === "activity" ? loadActivity() : null]);
 }
@@ -1129,6 +1150,7 @@ function renderCharts() { if (!state.meta.months.length) return; const s = state
 async function loadActivity() {
   const p = new URLSearchParams({ month: state.month });
   if (state.cat === INTERNAL) p.set("internal", "only");
+  else if (state.cat === SETTLED || state.cat === HIDDEN) { p.set("show", state.cat === SETTLED ? "settled" : "hidden"); p.set("internal", "show"); }
   else if (state.cat?.startsWith(VIA)) p.set("via", state.cat.slice(VIA.length));
   else if (state.cat) p.set("category", state.cat);
   if (state.q) p.set("q", state.q);

@@ -15,7 +15,7 @@ from typing import Iterable, Optional
 
 import yaml
 
-from . import ai, paylater
+from . import ai, netting, paylater
 from .parsing import BankProfile, RawMessage, Transaction, find_mirrors, parse_message
 
 SCHEMA = """
@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   occurred_at TEXT, month TEXT, amount REAL, currency TEXT, amount_base REAL,
   account TEXT, merchant_raw TEXT, merchant_key TEXT, merchant TEXT,
   counterparty TEXT, status TEXT, pattern TEXT, extra TEXT,
-  category TEXT, category_source TEXT, mirror_of TEXT, note TEXT DEFAULT ''
+  category TEXT, category_source TEXT, mirror_of TEXT, note TEXT DEFAULT '',
+  hidden INTEGER DEFAULT 0, spend REAL DEFAULT 0, income REAL DEFAULT 0, counted INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS tx_month ON transactions(month);
 -- amount 0 means "any amount"; otherwise the rule only matches that exact amount.
@@ -36,7 +37,12 @@ CREATE TABLE IF NOT EXISTS merchant_rules (
   PRIMARY KEY (merchant_key, amount)
 );
 CREATE TABLE IF NOT EXISTS overrides (
-  transaction_id TEXT PRIMARY KEY, category TEXT, direction TEXT, note TEXT
+  transaction_id TEXT PRIMARY KEY, category TEXT, direction TEXT, note TEXT,
+  hidden INTEGER DEFAULT 0, merchant TEXT
+);
+-- Your own name for a merchant, shown instead of the one read from the bank alert.
+CREATE TABLE IF NOT EXISTS merchant_names (
+  merchant_key TEXT PRIMARY KEY, name TEXT
 );
 CREATE TABLE IF NOT EXISTS custom_categories (
   key TEXT PRIMARY KEY, name TEXT, color TEXT, created_at TEXT
@@ -53,6 +59,12 @@ CREATE TABLE IF NOT EXISTS ai_transactions (
   message_id TEXT PRIMARY KEY, json TEXT
 );
 """
+
+
+# Column order of the transactions table, for rebuild() inserts.
+COLUMNS = ("id message_id bank kind direction occurred_at month amount currency amount_base account merchant_raw "
+           "merchant_key merchant counterparty status pattern extra category category_source mirror_of note "
+           "hidden spend income counted").split()
 
 
 class Categories:
@@ -103,7 +115,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
-        self._migrate()
+        upgraded = self._migrate()
         self.db.executescript(SCHEMA)
         self.banks = banks
         self.categories = categories
@@ -111,8 +123,20 @@ class Store:
         for r in self.db.execute("SELECT * FROM custom_categories ORDER BY created_at"):
             if r["key"] not in categories.by_key:
                 categories.add(r["key"], r["name"], r["color"])
+        if upgraded and self.source()["emails"]:
+            self.rebuild()  # older ledgers lack the net spend / income columns
 
-    def _migrate(self) -> None:
+    def _migrate(self) -> bool:
+        """Bring an older database up to date; True when transactions needs a rebuild."""
+        upgraded = False
+        for table, added in (("transactions", ("hidden INTEGER DEFAULT 0", "spend REAL DEFAULT 0",
+                                               "income REAL DEFAULT 0", "counted INTEGER DEFAULT 1")),
+                             ("overrides", ("hidden INTEGER DEFAULT 0", "merchant TEXT"))):
+            have = [r[1] for r in self.db.execute(f"PRAGMA table_info({table})")]
+            for col in added if have else ():
+                if col.split()[0] not in have:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
+                    upgraded = upgraded or table == "transactions"
         cols = [r[1] for r in self.db.execute("PRAGMA table_info(merchant_rules)")]
         if cols and "amount" not in cols:  # v0.1 rules were merchant-wide only
             with self.db:
@@ -121,6 +145,7 @@ class Store:
                 self.db.execute("INSERT INTO merchant_rules (merchant_key, category, direction, created_at)"
                                 " SELECT merchant_key, category, direction, created_at FROM merchant_rules_v1")
                 self.db.execute("DROP TABLE merchant_rules_v1")
+        return upgraded
 
     # ---- ingestion -------------------------------------------------------
 
@@ -168,28 +193,37 @@ class Store:
         mirrors = find_mirrors(txns, self.banks)
         rules = {(r["merchant_key"], r["amount"]): r for r in self.db.execute("SELECT * FROM merchant_rules")}
         overrides = {r["transaction_id"]: r for r in self.db.execute("SELECT * FROM overrides")}
+        names = {r["merchant_key"]: r["name"] for r in self.db.execute("SELECT * FROM merchant_names")}
 
         rows = []
         for t in txns:
             rule = rules.get((t.merchant_key, round(t.amount, 2))) or rules.get((t.merchant_key, 0))
             category, source, direction = self._categorize(t, rule)
             o = overrides.get(t.id)
-            note = ""
+            note, hidden, merchant = "", 0, names.get(t.merchant_key) or t.merchant
             if o:
                 category = o["category"] or category
                 direction = o["direction"] or direction
                 source = "manual" if (o["category"] or o["direction"]) else source
-                note = o["note"] or ""
-            rows.append((
-                t.id, t.message_id, t.bank, t.kind, direction, t.occurred_at, t.occurred_at[:7],
-                t.amount, t.currency, self.categories.to_base(t.amount, t.currency), t.account,
-                t.merchant_raw, t.merchant_key, t.merchant, t.counterparty, t.status, t.pattern,
-                json.dumps(t.extra), category, source, mirrors.get(t.id), note,
-            ))
+                note, hidden, merchant = o["note"] or "", int(bool(o["hidden"])), o["merchant"] or merchant
+            extra = dict(t.extra)
+            if merchant != t.merchant:
+                extra["original_merchant"] = t.merchant
+            rows.append(dict(
+                id=t.id, message_id=t.message_id, bank=t.bank, kind=t.kind, direction=direction,
+                occurred_at=t.occurred_at, month=t.occurred_at[:7], amount=t.amount, currency=t.currency,
+                amount_base=self.categories.to_base(t.amount, t.currency), account=t.account,
+                merchant_raw=t.merchant_raw, merchant_key=t.merchant_key, merchant=merchant,
+                counterparty=t.counterparty, status=t.status, pattern=t.pattern, extra=extra,
+                category=category, category_source=source, mirror_of=mirrors.get(t.id), note=note, hidden=hidden))
+        netting.apply(rows)
+        for r in rows:
+            r["extra"] = json.dumps(r["extra"])
         with self.db:
             self.db.execute("DELETE FROM transactions")
             self.db.executemany(
-                f"INSERT INTO transactions VALUES ({','.join('?' * 22)})", rows)
+                f"INSERT INTO transactions ({','.join(COLUMNS)}) VALUES ({','.join('?' * len(COLUMNS))})",
+                [tuple(r[c] for c in COLUMNS) for r in rows])
             self.db.execute("DELETE FROM paylater_events")
             self.db.executemany(
                 f"INSERT INTO paylater_events VALUES ({','.join('?' * 14)})",
@@ -221,35 +255,54 @@ class Store:
     # ---- user corrections --------------------------------------------------
 
     def correct(self, tx_id: str, category: Optional[str] = None, direction: Optional[str] = None,
-                note: Optional[str] = None, remember: bool = True, match_amount: bool = False) -> None:
+                note: Optional[str] = None, remember: bool = True, match_amount: bool = False,
+                hidden: Optional[bool] = None, name: Optional[str] = None) -> None:
         """Fix one transaction. With remember=True the fix becomes a rule for its merchant,
         so every past and future transaction from that merchant follows it. With
         match_amount=True the rule only covers that merchant at this exact amount
-        (e.g. the AED 32.50 Careem Food order that is always your coffee)."""
+        (e.g. the AED 32.50 Careem Food order that is always your coffee).
+
+        hidden=True marks the transaction as "didn't happen": it drops out of every total.
+        name renames the merchant (everywhere when remembering, else on this transaction only);
+        an empty name goes back to the name read from the alert."""
         row = self.db.execute("SELECT merchant_key, amount FROM transactions WHERE id=?", (tx_id,)).fetchone()
         if not row:
             raise KeyError(tx_id)
         amount = round(row["amount"], 2) if match_amount else 0
         with self.db:
+            prev = self.db.execute("SELECT * FROM overrides WHERE transaction_id=?", (tx_id,)).fetchone()
+            ov = {k: prev[k] if prev else None for k in ("category", "direction", "note", "hidden", "merchant")}
+            touched = not remember or note is not None or hidden is not None
             if remember and (category or direction):
-                prev = self.db.execute("SELECT * FROM merchant_rules WHERE merchant_key=? AND amount=?",
+                rule = self.db.execute("SELECT * FROM merchant_rules WHERE merchant_key=? AND amount=?",
                                        (row["merchant_key"], amount)).fetchone()
                 self.db.execute(
                     "INSERT OR REPLACE INTO merchant_rules (merchant_key, amount, category, direction, created_at)"
                     " VALUES (?,?,?,?,?)",
-                    (row["merchant_key"], amount, category or (prev and prev["category"]),
-                     direction or (prev and prev["direction"]), datetime.now().isoformat()))
-                # A merchant-wide rule supersedes any one-off override on this transaction.
-                self.db.execute("UPDATE overrides SET category=NULL, direction=NULL WHERE transaction_id=?",
-                                (tx_id,))
-            if not remember or note is not None:
-                prev = self.db.execute("SELECT * FROM overrides WHERE transaction_id=?", (tx_id,)).fetchone()
-                self.db.execute(
-                    "INSERT OR REPLACE INTO overrides VALUES (?,?,?,?)",
-                    (tx_id,
-                     (category if not remember else None) or (prev and prev["category"]),
-                     (direction if not remember else None) or (prev and prev["direction"]),
-                     note if note is not None else (prev and prev["note"])))
+                    (row["merchant_key"], amount, category or (rule and rule["category"]),
+                     direction or (rule and rule["direction"]), datetime.now().isoformat()))
+                ov["category"] = ov["direction"] = None  # a merchant-wide rule supersedes a one-off override
+                touched = touched or prev is not None
+            elif not remember:
+                ov["category"], ov["direction"] = category or ov["category"], direction or ov["direction"]
+            if note is not None:
+                ov["note"] = note
+            if hidden is not None:
+                ov["hidden"] = int(hidden)
+            if name is not None:
+                name = re.sub(r"\s+", " ", name).strip()[:80]
+                if remember:
+                    ov["merchant"] = None
+                    touched = touched or prev is not None
+                    if name:
+                        self.db.execute("INSERT OR REPLACE INTO merchant_names VALUES (?,?)", (row["merchant_key"], name))
+                    else:
+                        self.db.execute("DELETE FROM merchant_names WHERE merchant_key=?", (row["merchant_key"],))
+                else:
+                    ov["merchant"] = name or None
+            if touched:
+                self.db.execute("INSERT OR REPLACE INTO overrides (transaction_id, category, direction, note, hidden,"
+                                " merchant) VALUES (?,?,?,?,?,?)", (tx_id, *ov.values()))
         self.rebuild()
 
     def rules(self) -> list[dict]:
@@ -299,13 +352,20 @@ class Store:
 
     # ---- queries -------------------------------------------------------------
 
-    _VISIBLE = "mirror_of IS NULL"
+    # Totals add up `spend` and `income` of counted rows: netting.apply() zeroes the rows that don't
+    # count (duplicates, "didn't happen", settled transfers) and makes refunds negative spending.
+    _COUNTED = "counted=1"
 
     def transactions(self, month: Optional[str] = None, category: Optional[str] = None,
                      q: Optional[str] = None, internal: str = "show", via: Optional[str] = None,
-                     limit: int = 500) -> list[dict]:
-        """internal: "show" everything, "hide" or "only" moves between your own accounts."""
-        sql, args = f"SELECT * FROM transactions WHERE {self._VISIBLE}", []
+                     show: Optional[str] = None, limit: int = 500) -> list[dict]:
+        """internal: "show" everything, "hide" or "only" moves between your own accounts.
+        show: None lists what counts; "hidden" lists what you marked as not happened, "settled"
+        the transfers that cancelled out."""
+        sql, args = "SELECT * FROM transactions WHERE mirror_of IS NULL", []
+        settled = "json_extract(extra, '$.settled') IS NOT NULL"
+        sql += (" AND hidden=1" if show == "hidden" else f" AND hidden=0 AND {settled}" if show == "settled"
+                else f" AND hidden=0 AND NOT {settled}")
         if internal == "hide":
             sql += " AND direction!='internal'"
         elif internal == "only":
@@ -317,7 +377,8 @@ class Store:
         if via:
             sql += " AND lower(json_extract(extra, '$.via'))=lower(?)"; args.append(via)
         if q:
-            sql += " AND (merchant LIKE ? OR counterparty LIKE ? OR note LIKE ?)"; args += [f"%{q}%"] * 3
+            sql += " AND (merchant LIKE ? OR merchant_key LIKE ? OR counterparty LIKE ? OR note LIKE ?)"
+            args += [f"%{q}%"] * 4
         sql += " ORDER BY occurred_at DESC LIMIT ?"; args.append(limit)
         out = []
         for r in self.db.execute(sql, args):
@@ -328,7 +389,7 @@ class Store:
         out = []
         for p in self.providers:
             rows = [dict(r) for r in self.db.execute(
-                f"SELECT merchant, category, amount_base FROM transactions WHERE month=? AND {self._VISIBLE}"
+                f"SELECT merchant, category, amount_base FROM transactions WHERE month=? AND {self._COUNTED}"
                 " AND direction='out' AND json_extract(extra, '$.via')=?", (month, p.name))]
             events = [paylater.Event(r["message_id"], r["provider"], r["kind"], datetime.fromisoformat(r["at"]),
                                      r["store"] or "", r["order_id"] or "", r["paid"] or 0.0, r["remaining"],
@@ -355,19 +416,19 @@ class Store:
 
     def category_detail(self, month: str, category: str) -> dict:
         """One category for one month: total, last month, places ranked, and the last six months."""
-        v = self._VISIBLE
-        q = (f"FROM transactions WHERE category=? AND direction='out' AND {v}")
-        total = self.db.execute(f"SELECT coalesce(sum(amount_base),0), count(*) {q} AND month=?", (category, month)).fetchone()
-        prev = self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=?", (category, _prev_month(month))).fetchone()[0]
+        q = f"FROM transactions WHERE category=? AND spend!=0 AND {self._COUNTED}"
+        total = self.db.execute(f"SELECT coalesce(sum(spend),0), count(*) {q} AND month=?", (category, month)).fetchone()
+        prev = self.db.execute(f"SELECT coalesce(sum(spend),0) {q} AND month=?", (category, _prev_month(month))).fetchone()[0]
         places = [dict(r) for r in self.db.execute(
-            f"SELECT merchant, merchant_key, round(sum(amount_base),2) AS total, count(*) AS visits,"
-            f" round(avg(amount_base),2) AS average, max(occurred_at) AS last {q} AND month=?"
-            f" GROUP BY merchant_key ORDER BY total DESC", (category, month))]
+            f"SELECT merchant, merchant_key, round(sum(spend),2) AS total, sum(spend>0) AS visits,"
+            f" round(avg(CASE WHEN spend>0 THEN spend END),2) AS average, max(occurred_at) AS last {q} AND month=?"
+            f" GROUP BY merchant_key HAVING round(sum(spend),2)!=0 ORDER BY total DESC", (category, month))]
         for p in places:
-            p["previous"] = round(self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=? AND merchant_key=?",
+            p["average"] = p["average"] or 0.0
+            p["previous"] = round(self.db.execute(f"SELECT coalesce(sum(spend),0) {q} AND month=? AND merchant_key=?",
                                                   (category, _prev_month(month), p["merchant_key"])).fetchone()[0], 2)
         recent = [m["month"] for m in self.months() if m["month"] <= month][-6:]
-        trend = [{"month": m, "total": round(self.db.execute(f"SELECT coalesce(sum(amount_base),0) {q} AND month=?",
+        trend = [{"month": m, "total": round(self.db.execute(f"SELECT coalesce(sum(spend),0) {q} AND month=?",
                                                              (category, m)).fetchone()[0], 2)} for m in recent]
         return {"category": category, "month": month, "total": round(total[0], 2), "count": total[1],
                 "previous": round(prev, 2), "places": places, "trend": trend}
@@ -375,65 +436,65 @@ class Store:
     def trends(self, upto: str, months: int = 12) -> dict:
         """Month-by-month money in and out, spending per category, and spending by weekday."""
         have = [m["month"] for m in self.months() if m["month"] <= upto][-months:]
-        v = self._VISIBLE
+        c = self._COUNTED
         out = {"months": have, "spent": [], "received": [], "moved": [], "categories": {}, "weekday": [0.0] * 7}
         for i, m in enumerate(have):
             row = self.db.execute(
-                f"SELECT coalesce(sum(CASE WHEN direction='out' THEN amount_base END),0),"
-                f" coalesce(sum(CASE WHEN direction='in' THEN amount_base END),0) FROM transactions WHERE month=? AND {v}",
+                f"SELECT coalesce(sum(spend),0), coalesce(sum(income),0) FROM transactions WHERE month=? AND {c}",
                 (m,)).fetchone()
             out["spent"].append(round(row[0], 2))
             out["received"].append(round(row[1], 2))
             out["moved"].append(round(self.db.execute(
-                f"SELECT coalesce(sum(amount_base),0) FROM transactions WHERE month=? AND direction='internal' AND {v}",
+                f"SELECT coalesce(sum(amount_base),0) FROM transactions WHERE month=? AND direction='internal' AND {c}",
                 (m,)).fetchone()[0], 2))
-            for r in self.db.execute(f"SELECT category, sum(amount_base) FROM transactions WHERE month=? AND"
-                                     f" direction='out' AND {v} GROUP BY category", (m,)):
+            for r in self.db.execute(f"SELECT category, sum(spend) FROM transactions WHERE month=? AND"
+                                     f" spend!=0 AND {c} GROUP BY category", (m,)):
                 out["categories"].setdefault(r[0], [0.0] * len(have))[i] = round(r[1], 2)
         if have:
             # Average per calendar weekday (Mon=0) over the days the window covers.
             first, last = f"{have[0]}-01", self.db.execute(
-                f"SELECT max(substr(occurred_at,1,10)) FROM transactions WHERE month=? AND {v}", (have[-1],)).fetchone()[0]
+                f"SELECT max(substr(occurred_at,1,10)) FROM transactions WHERE month=? AND {c}", (have[-1],)).fetchone()[0]
             days = self.db.execute(
                 "WITH RECURSIVE d(x) AS (SELECT date(?) UNION ALL SELECT date(x, '+1 day') FROM d WHERE x < date(?))"
                 " SELECT (CAST(strftime('%w', x) AS INT) + 6) % 7, count(*) FROM d GROUP BY 1", (first, last)).fetchall()
-            n = {w: c for w, c in days}
+            n = dict(days)
             for w, total in self.db.execute(
-                    f"SELECT (CAST(strftime('%w', substr(occurred_at,1,10)) AS INT) + 6) % 7, sum(amount_base)"
-                    f" FROM transactions WHERE month IN ({','.join('?' * len(have))}) AND direction='out' AND {v}"
+                    f"SELECT (CAST(strftime('%w', substr(occurred_at,1,10)) AS INT) + 6) % 7, sum(spend)"
+                    f" FROM transactions WHERE month IN ({','.join('?' * len(have))}) AND spend!=0 AND {self._COUNTED}"
                     f" GROUP BY 1", have):
                 out["weekday"][w] = round(total / max(n.get(w, 1), 1), 2)
         return out
 
     def months(self) -> list[dict]:
         return [dict(r) for r in self.db.execute(
-            f"SELECT month, round(sum(CASE WHEN direction='out' THEN amount_base ELSE 0 END),2) AS spent,"
-            f" round(sum(CASE WHEN direction='in' THEN amount_base ELSE 0 END),2) AS received,"
-            f" count(*) AS count FROM transactions WHERE {self._VISIBLE} GROUP BY month ORDER BY month")]
+            "SELECT month, round(sum(spend),2) AS spent, round(sum(income),2) AS received,"
+            " sum(counted) AS count FROM transactions WHERE mirror_of IS NULL AND hidden=0"
+            " GROUP BY month ORDER BY month")]
 
     def summary(self, month: str) -> dict:
-        v = self._VISIBLE
+        c = self._COUNTED
         def q(sql, *a):
             return [dict(r) for r in self.db.execute(sql, (month, *a))]
-        by_cat = q(f"SELECT category, round(sum(amount_base),2) AS total, count(*) AS count FROM transactions"
-                   f" WHERE month=? AND direction='out' AND {v} GROUP BY category ORDER BY total DESC")
-        by_day = q(f"SELECT substr(occurred_at,1,10) AS day, round(sum(amount_base),2) AS total FROM transactions"
-                   f" WHERE month=? AND direction='out' AND {v} GROUP BY day ORDER BY day")
-        merchants = q(f"SELECT merchant, category, round(sum(amount_base),2) AS total, count(*) AS count"
-                      f" FROM transactions WHERE month=? AND direction='out' AND {v}"
-                      f" GROUP BY merchant_key ORDER BY total DESC LIMIT 8")
-        by_hour = q(f"SELECT CAST(substr(occurred_at,12,2) AS INT) AS hour, round(sum(amount_base),2) AS total"
-                    f" FROM transactions WHERE month=? AND direction='out' AND {v} GROUP BY hour")
-        tot = q(f"SELECT round(coalesce(sum(CASE WHEN direction='out' THEN amount_base END),0),2) AS spent,"
-                f" round(coalesce(sum(CASE WHEN direction='in' THEN amount_base END),0),2) AS received,"
+        by_cat = q(f"SELECT category, round(sum(spend),2) AS total, count(*) AS count FROM transactions"
+                   f" WHERE month=? AND spend!=0 AND {c} GROUP BY category HAVING round(sum(spend),2)!=0"
+                   f" ORDER BY total DESC")
+        by_day = q(f"SELECT substr(occurred_at,1,10) AS day, round(sum(spend),2) AS total FROM transactions"
+                   f" WHERE month=? AND spend!=0 AND {c} GROUP BY day HAVING round(sum(spend),2)!=0 ORDER BY day")
+        merchants = q(f"SELECT merchant, category, round(sum(spend),2) AS total, sum(spend>0) AS count"
+                      f" FROM transactions WHERE month=? AND spend!=0 AND {c}"
+                      f" GROUP BY merchant_key HAVING sum(spend)>0 ORDER BY total DESC LIMIT 8")
+        by_hour = q(f"SELECT CAST(substr(occurred_at,12,2) AS INT) AS hour, round(sum(spend),2) AS total"
+                    f" FROM transactions WHERE month=? AND spend>0 AND {c} GROUP BY hour")
+        tot = q(f"SELECT round(coalesce(sum(spend),0),2) AS spent, round(coalesce(sum(income),0),2) AS received,"
                 f" round(coalesce(sum(CASE WHEN direction='internal' THEN amount_base END),0),2) AS moved,"
-                f" sum(direction!='internal') AS count, coalesce(sum(category_source='default' AND direction='out'),0) AS uncategorized"
-                f" FROM transactions WHERE month=? AND {v}")[0]
+                f" coalesce(sum(direction!='internal'),0) AS count,"
+                f" coalesce(sum(category_source='default' AND spend>0),0) AS uncategorized"
+                f" FROM transactions WHERE month=? AND {c}")[0]
         prev = self.db.execute(
-            f"SELECT round(coalesce(sum(amount_base),0),2) FROM transactions WHERE month=? AND direction='out' AND {v}",
+            f"SELECT round(coalesce(sum(spend),0),2) FROM transactions WHERE month=? AND {c}",
             (_prev_month(month),)).fetchone()[0]
         biggest = q(f"SELECT merchant, category, amount_base, occurred_at FROM transactions"
-                    f" WHERE month=? AND direction='out' AND {v} ORDER BY amount_base DESC LIMIT 1")
+                    f" WHERE month=? AND spend>0 AND {c} ORDER BY spend DESC LIMIT 1")
         budgets = {r["category"]: r["monthly"] for r in self.db.execute("SELECT * FROM budgets")}
         pay_later = self._paylater(month)
         return {"month": month, "currency": self.categories.base_currency, **tot, "previous_spent": prev,
