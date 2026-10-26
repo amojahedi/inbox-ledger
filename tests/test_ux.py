@@ -332,3 +332,30 @@ def test_activity_chips_use_the_owners_words():
     for name in ("Needs review", "Between my accounts", "Settled (cancelled out)", "Hidden (didn’t happen)", "Sent to people"):
         assert name in js, name
     assert "Show hidden" not in js and "Transfers to people" not in js
+
+
+def test_needs_review_flow_is_wired(app):
+    api, client, d = app
+    html, activity, app_js = client.get("/").text, (WEB / "activity.js").read_text(), (WEB / "app.js").read_text()
+    assert 'id="review-bar"' in html
+    assert "function startReview(" in activity and "function renderReviewBar(" in activity
+    assert "All caught up. Ledger will remember these merchants." in activity
+    assert "Review now" in activity  # the Rules empty state offers the same entry
+    assert 'addEventListener("click", startReview)' in app_js  # the Overview callout starts it
+    assert "state.review.auto = true" in activity  # Save advances to the next one
+
+
+def test_all_list_includes_moves_between_accounts():
+    activity, app_js = (WEB / "activity.js").read_text(), (WEB / "app.js").read_text()
+    assert 'if (!state.cat) p.set("internal", "show")' in app_js
+    assert "Day total leaves out moves between your accounts" in activity
+    assert "} saved`" in activity and 'class="tx-chev"' in activity
+
+
+def test_deep_links_and_history():
+    app_js = (WEB / "app.js").read_text()
+    assert "pushState" in app_js and "replaceState" in app_js
+    assert 'addEventListener("hashchange", restoreHash)' in app_js
+    for key in ("needs-review", "between-accounts", "settled", "hidden", "paid-with:", "q="):
+        assert key in app_js, key
+    assert "function parseHash(" in app_js and "state.detailCat = h.detailCat" in app_js

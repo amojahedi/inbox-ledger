@@ -118,8 +118,9 @@
       <div class="toolbar">
         <label class="visually-hidden" for="search">Search</label>
         <input type="search" id="search" placeholder="Search merchants and notes" autocomplete="off">
-        <div class="chips" id="chips" role="toolbar" aria-label="Filter by category"></div>
+        <div class="chips-wrap" id="chips-wrap"><div class="chips" id="chips" role="toolbar" aria-label="Filter by category"></div></div>
       </div>
+      <div class="review-bar" id="review-bar" role="status" aria-live="polite" hidden></div>
       <div class="card flush">
         <ul class="tx-list" id="tx-list"></ul>
         <div class="empty" id="tx-empty" hidden></div>
@@ -193,10 +194,7 @@
       </div>
       <div class="card flush">
         <ul class="rule-list" id="rule-list"></ul>
-        <div class="empty" id="rule-empty" hidden>
-          <strong>No rules yet</strong>
-          <span>Open any transaction in Activity and pick a category. Ledger remembers it for that merchant.</span>
-        </div>
+        <div class="empty" id="rule-empty" hidden></div>
       </div>
     </section>
 

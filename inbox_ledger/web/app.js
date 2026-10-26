@@ -6,14 +6,14 @@ const prevMonth = (m) => { const [y, mo] = m.split("-").map(Number); return mo =
 
 function setMonth(m) { state.month = m; syncHash(); loadMonth(); if (state.view === "activity") loadActivity(); if (state.view === "trends") loadTrends(); if (state.view === "category") loadCategory(); }
 
-function go(view) {
+function go(view, { push = true } = {}) {
   state.view = view;
   $$(".segmented[role=tablist] button").forEach((b) => b.setAttribute("aria-selected", b.dataset.view === view));
   $("#settings-btn").classList.toggle("on", view === "settings");
   $("#settings-btn").setAttribute("aria-pressed", view === "settings");
   $("#month-switch").classList.toggle("off", view === "settings" || view === "rules" || !state.meta.months.length);
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${view}`));
-  syncHash();
+  syncHash(push);
   if (view === "activity") loadActivity();
   if (view === "rules") loadRules();
   if (view === "settings") loadSettings();
@@ -25,7 +25,45 @@ function go(view) {
   scrollTo({ top: 0 });
 }
 
-function syncHash() { history.replaceState(null, "", `${location.search}#${state.view}/${state.month}`); }
+// ---------- deep links: #view/month[/key] ----------
+// Keys: #category/2026-10/dining, #activity/2026-10/needs-review, #activity/2026-10/q=faris.
+const HASH_KEYS = { other: "needs-review", [INTERNAL]: "between-accounts", [SETTLED]: "settled", [HIDDEN]: "hidden" };
+function hashKey() {
+  if (state.view === "category") return state.detailCat ? `/${encodeURIComponent(state.detailCat)}` : "";
+  if (state.view !== "activity") return "";
+  const c = state.cat;
+  const key = !c ? "" : HASH_KEYS[c] || (c.startsWith(VIA) ? `paid-with:${encodeURIComponent(c.slice(VIA.length))}` : encodeURIComponent(c));
+  return (key ? `/${key}` : "") + (state.q ? `/q=${encodeURIComponent(state.q)}` : "");
+}
+function parseHash() {
+  const [view, month, ...rest] = location.hash.slice(1).split("/");
+  const out = { view, month, cat: null, q: "", detailCat: null };
+  for (const part of rest) {
+    if (!part) continue;
+    if (part.startsWith("q=")) { out.q = decodeURIComponent(part.slice(2)); continue; }
+    const back = Object.entries(HASH_KEYS).find(([, v]) => v === part);
+    out.cat = back ? back[0] : part.startsWith("paid-with:") ? VIA + decodeURIComponent(part.slice(10)) : decodeURIComponent(part);
+    if (out.cat && !HASH_KEYS[out.cat] && !out.cat.startsWith(VIA) && !state.meta.categories.some((c) => c.key === out.cat)) out.cat = null;
+    out.detailCat = out.cat;
+  }
+  return out;
+}
+// A view change makes a history entry (so Back works); month and filter changes replace the current one.
+function syncHash(push = false) {
+  const h = `#${state.view}/${state.month}${hashKey()}`;
+  if (location.hash === h) return;
+  history[push ? "pushState" : "replaceState"](null, "", `${location.search}${h}`);
+}
+// Back/forward or a pasted link: restore month, view and filter from the hash.
+function restoreHash() {
+  const h = parseHash();
+  const months = state.meta.months.map((m) => m.month);
+  if (!VIEWS.includes(h.view)) return;
+  if (h.view === "activity") { state.cat = h.cat; state.q = h.q; $("#search").value = h.q; state.review = null; }
+  if (h.view === "category") { if (!h.detailCat) return; state.detailCat = h.detailCat; }
+  if (h.month && h.month !== state.month && months.includes(h.month)) { state.month = h.month; loadMonth(); }
+  go(h.view, { push: false });
+}
 
 function syncMonthNav() {
   const months = state.meta.months.map((m) => m.month);
@@ -54,12 +92,14 @@ function renderCharts() { if (!state.meta.months.length) return; const s = state
 
 async function loadActivity() {
   const p = new URLSearchParams({ month: state.month });
-  if (state.cat === INTERNAL) p.set("internal", "only");
+  if (!state.cat) p.set("internal", "show");  // the All list shows moves between your accounts, greyed
+  else if (state.cat === INTERNAL) p.set("internal", "only");
   else if (state.cat === SETTLED || state.cat === HIDDEN) { p.set("show", state.cat === SETTLED ? "settled" : "hidden"); p.set("internal", "show"); }
   else if (state.cat?.startsWith(VIA)) p.set("via", state.cat.slice(VIA.length));
   else if (state.cat) p.set("category", state.cat);
   if (state.q) p.set("q", state.q);
   state.txs = await api(`/api/transactions?${p}`);
+  if (state.view === "activity") syncHash();
   renderActivity();
 }
 
@@ -77,7 +117,7 @@ function wire() {
   const months = () => state.meta.months.map((m) => m.month);
   $("#prev").addEventListener("click", () => setMonth(months()[months().indexOf(state.month) - 1]));
   $("#next").addEventListener("click", () => setMonth(months()[months().indexOf(state.month) + 1]));
-  $("#callout-btn").addEventListener("click", () => { state.cat = "other"; go("activity"); });
+  $("#callout-btn").addEventListener("click", startReview);
   $("#leave-demo").addEventListener("click", () => leaveDemo().catch((e) => toast(e.message)));
   $("#empty-start").addEventListener("click", () => openOnboarding(state.meta.settings.onboarded ? 2 : 0));
   $("#empty-demo").addEventListener("click", () => enterDemo().catch((e) => toast(e.message)));
@@ -150,11 +190,13 @@ function wire() {
     const b = e.target.closest("button"); if (!b) return;
     state.trendMonths = +b.dataset.months; loadTrends();
   });
-  addEventListener("hashchange", () => {
-    const [v, m] = location.hash.slice(1).split("/");
-    if (m && m !== state.month && months().includes(m)) setMonth(m);
-    if (v && v !== state.view && VIEWS.includes(v)) go(v);
-  });
+  addEventListener("hashchange", restoreHash);
+  // The chips row fades at its right edge while there is more to scroll to.
+  const chips = $("#chips"), wrap = $("#chips-wrap");
+  const fade = () => wrap.classList.toggle("more", chips.scrollLeft + chips.clientWidth < chips.scrollWidth - 2);
+  chips.addEventListener("scroll", fade, { passive: true });
+  addEventListener("resize", fade);
+  new MutationObserver(fade).observe(chips, { childList: true });
 }
 
 async function init() {
@@ -162,10 +204,12 @@ async function init() {
   loadDefs();
   state.meta = await api("/api/meta");
   applyPrefs();
-  const [view, month] = location.hash.slice(1).split("/");
+  const h = parseHash(), { view, month } = h;
   state.month = state.meta.months.some((m) => m.month === month) ? month : state.meta.current;
+  if (view === "activity") { state.cat = h.cat; state.q = h.q; $("#search").value = h.q; }
+  if (view === "category") state.detailCat = h.detailCat;
   await loadMonth();
-  go(VIEWS.includes(view) ? view : "overview");
+  go(VIEWS.includes(view) && (view !== "category" || h.detailCat) ? view : "overview", { push: false });
   const firstRun = !state.meta.source.emails && !state.meta.settings.onboarded && !state.meta.source.demo;
   if (view === "welcome" || firstRun) {
     state.settings = await api("/api/settings");
