@@ -133,7 +133,7 @@ def test_target_dates(store):
 def test_tip_trims_the_biggest_discretionary_category(store):
     store.add_messages(demo.generate(months=6, now=NOW))
     store.rebuild()
-    wishlist.add(store.db, {"name": "MacBook Air", "price": 30000})
+    wishlist.add(store.db, {"name": "MacBook Air", "price": 120000})  # months away, so a 20% cut shows
     p = wishlist.plan(store, TODAY)
     tip = p["tip"]
     months = [m["month"] for m in p["pace"]["auto"]["months"]]

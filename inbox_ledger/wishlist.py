@@ -236,7 +236,7 @@ def saving_pace(store, today: Optional[date] = None) -> dict:
     today = today or date.today()
     current = _month(today)
     months = [m for m in store.months() if m["month"] < current]
-    first = store.db.execute("SELECT min(occurred_at) FROM transactions WHERE mirror_of IS NULL").fetchone()[0]
+    first = store.db.execute("SELECT min(occurred_at) FROM transactions WHERE counted=1").fetchone()[0]
     # The first month of data is only complete if the emails start at the very beginning of it.
     if months and first and first[:7] == months[0]["month"] and int(first[8:10]) > 3 and len(months) > 1:
         months = months[1:]
@@ -255,8 +255,8 @@ def saving_pace(store, today: Optional[date] = None) -> dict:
 def _categories(store, months: list[str]) -> dict[str, float]:
     if not months:
         return {}
-    q = (f"SELECT category, sum(amount_base) FROM transactions WHERE month IN ({','.join('?' * len(months))})"
-         " AND direction='out' AND mirror_of IS NULL GROUP BY category")
+    q = (f"SELECT category, sum(spend) FROM transactions WHERE month IN ({','.join('?' * len(months))})"
+         " AND spend!=0 AND counted=1 GROUP BY category")  # same rows and refund netting as the summaries
     return {r[0]: round(r[1] / len(months), 2) for r in store.db.execute(q, months)}
 
 
