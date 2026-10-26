@@ -1,0 +1,41 @@
+# What each money word in Ledger means. Served as GET /api/definitions so every
+# screen explains a number with the same sentence. The longer version, with the
+# rounding rules and the arithmetic, is docs/definitions.md.
+#
+# Keep these short, plain and friendly. Sentence case, no jargon.
+
+came_in:
+  title: Came in
+  text: Money that arrived in your accounts, like your salary. Refunds and money a friend paid back are not income, so they are left out.
+
+spent:
+  title: Spent
+  text: Card purchases, debits and money you sent to people, with refunds taken off. Moves to your own savings, settled transfers and anything you marked as didn’t happen are not counted.
+
+saved:
+  title: Saved
+  text: Money you moved to your own savings this month. If some came back, it is taken off, so this is what actually stayed put.
+
+left:
+  title: Left
+  text: What is still there after spending and saving. Came in − Spent − Saved.
+
+fixed:
+  title: Fixed
+  text: The part of your spending that is much the same every month, like rent, bills and subscriptions.
+
+everyday:
+  title: Everyday
+  text: Everything else you spent. Spent − Fixed. This is the part you can change from week to week.
+
+settled:
+  title: Settled
+  text: Money you sent someone and got back from them within 45 days. It cancels out, so it is left out of every total.
+
+hidden:
+  title: Hidden
+  text: A transaction you marked as didn’t happen. It stays in the list for reference but is left out of every total.
+
+needs_review:
+  title: Needs review
+  text: Purchases Ledger could not place in a category. Pick one once and it remembers for next time.

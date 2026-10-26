@@ -5,11 +5,13 @@ rules change: `rebuild()` is cheap and idempotent.
 """
 from __future__ import annotations
 
+import calendar
 import json
+import os
 import re
 import sqlite3
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -73,6 +75,8 @@ class Categories:
         self.fx = {k.upper(): float(v) for k, v in spec.get("fx", {}).items()}
         self.items = spec["categories"]
         self.by_key = {c["key"]: c for c in self.items}
+        # Spending that is much the same every month (rent, bills, subscriptions): Spent = Fixed + Everyday.
+        self.fixed = {c["key"] for c in self.items if c.get("fixed")}
         # Whole-word matching so "rta" never matches inside "Martahan".
         self._res = [
             (c["key"], re.compile(r"(?<![a-z0-9])(?:" + "|".join(
@@ -101,6 +105,9 @@ class Categories:
 
     def to_base(self, amount: float, currency: str) -> float:
         return round(amount * self.fx.get(currency.upper(), 1.0), 2)
+
+    def is_fixed(self, key: str) -> bool:
+        return key in self.fixed
 
     def match(self, t: Transaction) -> Optional[str]:
         for key, rx in self._res:
@@ -355,6 +362,10 @@ class Store:
     # Totals add up `spend` and `income` of counted rows: netting.apply() zeroes the rows that don't
     # count (duplicates, "didn't happen", settled transfers) and makes refunds negative spending.
     _COUNTED = "counted=1"
+    # Saved = net moves to your own accounts: a move back (netting marks it moved_back) is taken off.
+    _MOVED = ("CASE WHEN direction='internal' THEN CASE WHEN json_extract(extra, '$.moved_back')"
+              " THEN -amount_base ELSE amount_base END ELSE 0 END")
+    _TX = "(counted=1 AND direction!='internal')"  # what "transactions" counts, in months() and summary()
 
     def transactions(self, month: Optional[str] = None, category: Optional[str] = None,
                      q: Optional[str] = None, internal: str = "show", via: Optional[str] = None,
@@ -423,8 +434,9 @@ class Store:
             f"SELECT merchant, merchant_key, round(sum(spend),2) AS total, sum(spend>0) AS visits,"
             f" round(avg(CASE WHEN spend>0 THEN spend END),2) AS average, max(occurred_at) AS last {q} AND month=?"
             f" GROUP BY merchant_key HAVING round(sum(spend),2)!=0 ORDER BY total DESC", (category, month))]
-        for p in places:
+        for p, share in zip(places, percents([p["total"] for p in places])):
             p["average"] = p["average"] or 0.0
+            p["share"] = share
             p["previous"] = round(self.db.execute(f"SELECT coalesce(sum(spend),0) {q} AND month=? AND merchant_key=?",
                                                   (category, _prev_month(month), p["merchant_key"])).fetchone()[0], 2)
         recent = [m["month"] for m in self.months() if m["month"] <= month][-6:]
@@ -445,8 +457,7 @@ class Store:
             out["spent"].append(round(row[0], 2))
             out["received"].append(round(row[1], 2))
             out["moved"].append(round(self.db.execute(
-                f"SELECT coalesce(sum(amount_base),0) FROM transactions WHERE month=? AND direction='internal' AND {c}",
-                (m,)).fetchone()[0], 2))
+                f"SELECT coalesce(sum({self._MOVED}),0) FROM transactions WHERE month=? AND {c}", (m,)).fetchone()[0], 2))
             for r in self.db.execute(f"SELECT category, sum(spend) FROM transactions WHERE month=? AND"
                                      f" spend!=0 AND {c} GROUP BY category", (m,)):
                 out["categories"].setdefault(r[0], [0.0] * len(have))[i] = round(r[1], 2)
@@ -467,12 +478,17 @@ class Store:
 
     def months(self) -> list[dict]:
         return [dict(r) for r in self.db.execute(
-            "SELECT month, round(sum(spend),2) AS spent, round(sum(income),2) AS received,"
-            " sum(counted) AS count FROM transactions WHERE mirror_of IS NULL AND hidden=0"
-            " GROUP BY month ORDER BY month")]
+            f"SELECT month, round(sum(spend),2) AS spent, round(sum(income),2) AS received,"
+            f" round(sum({self._MOVED}),2) AS moved, sum({self._TX}) AS count FROM transactions"
+            f" WHERE mirror_of IS NULL AND hidden=0 GROUP BY month ORDER BY month")]
 
-    def summary(self, month: str) -> dict:
+    def summary(self, month: str, today: Optional[date] = None, example: bool = False) -> dict:
+        """One month, every number the Overview shows. The server decides what day it is (`today`, default
+        LEDGER_TODAY or the clock); example data is always shown as a complete month."""
         c = self._COUNTED
+        today = today or today_date()
+        fixed_keys = sorted(self.categories.fixed) or [""]
+        in_fixed = f"category IN ({','.join('?' * len(fixed_keys))})"
         def q(sql, *a):
             return [dict(r) for r in self.db.execute(sql, (month, *a))]
         by_cat = q(f"SELECT category, round(sum(spend),2) AS total, count(*) AS count FROM transactions"
@@ -485,28 +501,78 @@ class Store:
                       f" GROUP BY merchant_key HAVING sum(spend)>0 ORDER BY total DESC LIMIT 8")
         by_hour = q(f"SELECT CAST(substr(occurred_at,12,2) AS INT) AS hour, round(sum(spend),2) AS total"
                     f" FROM transactions WHERE month=? AND spend>0 AND {c} GROUP BY hour")
-        tot = q(f"SELECT round(coalesce(sum(spend),0),2) AS spent, round(coalesce(sum(income),0),2) AS received,"
-                f" round(coalesce(sum(CASE WHEN direction='internal' THEN amount_base END),0),2) AS moved,"
-                f" coalesce(sum(direction!='internal'),0) AS count,"
-                f" coalesce(sum(category_source='default' AND spend>0),0) AS uncategorized"
-                f" FROM transactions WHERE month=? AND {c}")[0]
+        tot = dict(self.db.execute(
+            f"SELECT round(coalesce(sum(spend),0),2) AS spent, round(coalesce(sum(income),0),2) AS received,"
+            f" round(coalesce(sum({self._MOVED}),0),2) AS moved,"
+            f" round(coalesce(sum(CASE WHEN {in_fixed} THEN spend END),0),2) AS fixed,"
+            f" coalesce(sum({self._TX}),0) AS count,"
+            f" coalesce(sum(category_source='default' AND spend>0),0) AS uncategorized"
+            f" FROM transactions WHERE month=? AND {c}", (*fixed_keys, month)).fetchone())
+        tot["everyday"] = round(tot["spent"] - tot["fixed"], 2)
+        tot["left"] = round(tot["received"] - tot["spent"] - tot["moved"], 2)
         prev = self.db.execute(
             f"SELECT round(coalesce(sum(spend),0),2) FROM transactions WHERE month=? AND {c}",
             (_prev_month(month),)).fetchone()[0]
         biggest = q(f"SELECT merchant, category, amount_base, occurred_at FROM transactions"
                     f" WHERE month=? AND spend>0 AND {c} ORDER BY spend DESC LIMIT 1")
+        # The largest single everyday purchase, and the place you went to most often (ties: the higher total).
+        everyday = q(f"SELECT merchant, category, round(spend,2) AS amount, substr(occurred_at,1,10) AS date"
+                     f" FROM transactions WHERE month=? AND spend>0 AND {c} AND NOT {in_fixed}"
+                     f" ORDER BY spend DESC, occurred_at LIMIT 1", *fixed_keys)
+        visited = q(f"SELECT merchant, category, sum(spend>0) AS count, round(sum(spend),2) AS total"
+                    f" FROM transactions WHERE month=? AND spend!=0 AND {c} GROUP BY merchant_key"
+                    f" HAVING sum(spend>0)>0 ORDER BY count DESC, total DESC LIMIT 1")
+        # Time: a month that is over, or example data, is complete; the month in progress has run to today.
+        days = calendar.monthrange(*map(int, month.split("-")))[1]
+        current = month == today.isoformat()[:7]
+        in_progress = current and not example
+        elapsed = today.day if in_progress else days if example or month < today.isoformat()[:7] else 0
+        prev_to_date = None
+        if in_progress:
+            prev_to_date = round(self.db.execute(
+                f"SELECT coalesce(sum(spend),0) FROM transactions WHERE month=? AND {c}"
+                f" AND CAST(substr(occurred_at,9,2) AS INT) <= ?", (_prev_month(month), elapsed)).fetchone()[0], 2)
         budgets = {r["category"]: r["monthly"] for r in self.db.execute("SELECT * FROM budgets")}
         pay_later = self._paylater(month)
         return {"month": month, "currency": self.categories.base_currency, **tot, "previous_spent": prev,
                 "by_category": by_cat, "by_day": by_day, "top_merchants": merchants,
                 "by_hour": by_hour, "biggest": biggest[0] if biggest else None, "budgets": budgets,
-                "pay_later": pay_later}
+                "pay_later": pay_later, "most_visited": visited[0] if visited else None,
+                "biggest_everyday": everyday[0] if everyday else None,
+                "elapsed_days": elapsed, "in_progress": in_progress, "previous_spent_to_date": prev_to_date}
 
 
 def _month_end_utc(month: str) -> datetime:
     from datetime import timezone
     y, m = map(int, month.split("-"))
     return datetime(y + (m == 12), m % 12 + 1, 1, tzinfo=timezone.utc)
+
+
+def today_date() -> date:
+    """The server's idea of today. LEDGER_TODAY=YYYY-MM-DD overrides the clock for demos and tests."""
+    forced = os.environ.get("LEDGER_TODAY", "").strip()
+    if forced:
+        try:
+            return date.fromisoformat(forced[:10])
+        except ValueError:
+            pass
+    return date.today()
+
+
+def percents(values: list[float]) -> list[int]:
+    """Whole-number shares that add up to exactly 100 (largest remainder). Negative values take no share."""
+    if not values:
+        return []
+    total = sum(max(0.0, v) for v in values)
+    if total <= 0:
+        return [0] * len(values)
+    raw = [max(0.0, v) / total * 100 for v in values]
+    out = [int(v) for v in raw]
+    rest = 100 - sum(out)
+    by_remainder = sorted(range(len(raw)), key=lambda i: (-(raw[i] - int(raw[i])), i))  # ties: the earlier row
+    for i in by_remainder[:max(rest, 0)]:
+        out[i] += 1
+    return out
 
 
 def _prev_month(month: str) -> str:
