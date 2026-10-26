@@ -25,7 +25,10 @@ MISSING_BILL_GRACE = 2      # days after its usual date before a bill counts as 
 
 
 def fixed_keys(store: Store) -> list[str]:
-    """Categories whose spend is fixed: flagged `fixed: true`, else the built-in three."""
+    """Categories whose spend is fixed: the ones the store flags `fixed: true`, else the built-in three."""
+    flagged = getattr(store.categories, "fixed", None)
+    if flagged:
+        return sorted(flagged)
     return [c["key"] for c in store.categories.items if c.get("fixed", c["key"] in DEFAULT_FIXED)]
 
 
@@ -56,7 +59,7 @@ def build(store: Store, month: str, *, demo: bool = False, today: Optional[date]
     c = "counted=1"
     db = store.db
 
-    s = store.summary(month)
+    s = store.summary(month, today=today, example=demo)
     days = _days_in(month)
     in_progress = not demo and month == today.isoformat()[:7]
     elapsed = min(today.day, days) if in_progress else days

@@ -658,20 +658,9 @@ def reset_plan(month: str):
 from . import insights as _insights  # noqa: E402
 
 
-def _today() -> Day:
-    """Server-side today; LEDGER_TODAY=YYYY-MM-DD pins it (tests, screenshots)."""
-    pin = os.environ.get("LEDGER_TODAY", "")
-    try:
-        return Day.fromisoformat(pin) if pin else Day.today()
-    except ValueError:
-        return Day.today()
-
-
 @app.get("/api/insights")
 def insights_route(month: str, months: int = 12):
-    st, p = S(), prefs()
-    demo = in_demo(p) or (data_dir() / "DEMO").exists()
-    out = _insights.build(st, _plan_month(month), demo=demo, today=_today(), months=months)
+    out = _insights.build(S(), _plan_month(month), demo=example_data(), today=today_date(), months=months)
     if out.get("most_visited"):
         out["most_visited"]["brand"] = _brand(out["most_visited"]["merchant"])
     return out
