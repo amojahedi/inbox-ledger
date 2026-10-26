@@ -19,36 +19,43 @@ SAVING_TRANSFER = 8000.00
 LANDLORD = "LANDLORD"
 FRIENDS = ["SARA AHMED", "LAYLA HASSAN", "DANIEL ROSS", "PRIYA MENON", "YUSUF RAHMAN", "NOUR KHALIL"]
 
-# (merchant as printed on the card, min, max, purchases per month, likely hours, currency)
+# Monthly spending per category (AED). Each month lands within a few percent of these, so months
+# compare sensibly and the demo's budgets (DEMO_BUDGETS) sit just above typical spending.
+TARGETS = {"dining": 1250, "coffee": 850, "groceries": 650, "shopping": 450, "health": 250,
+           "taxi": 200, "transport": 100, "entertainment": 100, "other": 120}
+
+# (merchant as printed on the card, relative size, purchases per month, likely hours, category it counts toward)
 _LUNCH, _DINNER, _DAY, _EVENING = (12, 14), (19, 22), (9, 18), (17, 22)
 _CARD_MERCHANTS = [
-    ("CAREEM FOOD DUBAI AE", 45, 115, (10, 15), _DINNER, "AED"),
-    ("TALABAT DUBAI AE", 60, 165, (7, 11), _DINNER, "AED"),
-    ("THE MEAT CO RESTAURANT DUBAI AE", 220, 480, (1, 2), _DINNER, "AED"),
-    ("STARBUCKS DUBAI AE", 35, 65, (10, 14), (8, 11), "AED"),
-    ("ARABICA DUBAI AE", 55, 95, (14, 20), (9, 17), "AED"),
-    ("TIM HORTONS DUBAI AE", 30, 55, (8, 12), (7, 11), "AED"),
-    ("CARIBOU COFFEE DUBAI AE", 35, 60, (4, 6), (9, 17), "AED"),
-    ("SHAWARMA HOUSE DUBAI AE", 28, 60, (3, 5), _LUNCH, "AED"),
-    ("CARREFOUR MOE DUBAI AE", 70, 280, (3, 5), _EVENING, "AED"),
-    ("SPINNEYS DUBAI AE", 90, 340, (1, 2), _EVENING, "AED"),
-    ("CAREEM RIDE DUBAI AE", 16, 58, (6, 10), (7, 23), "AED"),
-    ("SALIK DUBAI AE", 50, 100, (1, 1), _DAY, "AED"),
-    ("ENOC DUBAI AE", 85, 190, (2, 3), _DAY, "AED"),
-    ("AMAZON.AE DUBAI AE", 45, 380, (1, 3), (10, 23), "AED"),
-    ("NOON.COM DUBAI AE", 60, 330, (1, 2), (10, 23), "AED"),
-    ("LIFE PHARMACY DUBAI AE", 35, 170, (1, 2), _DAY, "AED"),
-    ("SEPHORA DUBAI AE", 120, 520, (1, 3), (12, 21), "AED"),
-    ("F45 TRAINING DUBAI AE", 95, 140, (2, 4), (6, 8), "AED"),
-    ("VOX CINEMAS DUBAI AE", 55, 125, (1, 2), _EVENING, "AED"),
+    ("CAREEM FOOD DUBAI AE", 1.0, (6, 9), _DINNER, "dining"),
+    ("TALABAT DUBAI AE", 1.3, (4, 6), _DINNER, "dining"),
+    ("THE MEAT CO RESTAURANT DUBAI AE", 3.5, (0, 1), _DINNER, "dining"),
+    ("SHAWARMA HOUSE DUBAI AE", 0.5, (2, 4), _LUNCH, "dining"),
+    ("ARABICA DUBAI AE", 1.0, (8, 11), (9, 17), "coffee"),
+    ("STARBUCKS DUBAI AE", 0.8, (4, 6), (8, 11), "coffee"),
+    ("TIM HORTONS DUBAI AE", 0.6, (2, 4), (7, 11), "coffee"),
+    ("CARIBOU COFFEE DUBAI AE", 0.7, (1, 2), (9, 17), "coffee"),
+    ("CARREFOUR MOE DUBAI AE", 1.0, (2, 4), _EVENING, "groceries"),
+    ("SPINNEYS DUBAI AE", 1.3, (1, 2), _EVENING, "groceries"),
+    ("OUNASS DUBAI AE", 2.5, (0, 1), (12, 22), "shopping"),
+    ("6TH STREET DUBAI AE", 1.5, (1, 1), (12, 22), "shopping"),
+    ("AMAZON.AE DUBAI AE", 1.0, (1, 2), (10, 23), "shopping"),
+    ("NAMSHI DUBAI AE", 1.2, (0, 1), (10, 23), "shopping"),
+    ("LIFE PHARMACY DUBAI AE", 0.6, (0, 1), _DAY, "health"),
+    ("SEPHORA DUBAI AE", 1.2, (0, 1), (12, 21), "health"),
+    ("F45 TRAINING DUBAI AE", 0.5, (1, 2), (6, 8), "health"),
+    ("CAREEM RIDE DUBAI AE", 1.0, (4, 7), (7, 23), "taxi"),
+    ("SALIK DUBAI AE", 1.0, (1, 1), _DAY, "transport"),
+    ("ENOC DUBAI AE", 1.5, (0, 1), _DAY, "transport"),
+    ("VOX CINEMAS DUBAI AE", 1.0, (1, 2), _EVENING, "entertainment"),
     # Not in categories.yaml on purpose: these are what you teach the app once.
-    ("AL FARIS TAILORING DUBAI AE", 60, 260, (0, 1), _DAY, "AED"),
-    ("GOLDEN SANDS TRADING LLC DUBAI AE", 40, 210, (1, 2), _DAY, "AED"),
-    ("ZEN CORNER 1182 DUBAI AE", 25, 95, (1, 2), _EVENING, "AED"),
+    ("AL FARIS TAILORING DUBAI AE", 1.5, (1, 1), _DAY, "other"),
+    ("GOLDEN SANDS TRADING LLC DUBAI AE", 1.0, (0, 1), _DAY, "other"),
+    ("ZEN CORNER 1182 DUBAI AE", 0.6, (0, 1), _EVENING, "other"),
 ]
 # (merchant, amount, day of month, hour, currency) — fixed monthly charges
 _RECURRING = [
-    ("FITNESS FIRST DUBAI AE", 650.00, 3, 7, "AED"),
+    ("FITNESS FIRST DUBAI AE", 349.00, 3, 7, "AED"),
     ("DEWA DUBAI AE", None, 5, 10, "AED"),
     ("NETFLIX.COM SINGAPORE SG", 15.49, 8, 3, "USD"),
     ("SPOTIFY LUXEMBOURG LU", 4.99, 12, 5, "USD"),
@@ -89,7 +96,7 @@ def _advice(local: datetime, account: str, text: str) -> tuple:
 
 
 def _atm(rng: random.Random, local: datetime) -> tuple:
-    amount = float(rng.choice([200, 300, 500, 500, 1000]))
+    amount = float(rng.choice([100, 200, 200, 300]))
     return _advice(local, MAIN, f"AED {_fmt(amount)} has been withdrawn from your account {{acct}}. The available "
                                 f"balance is AED {_fmt(rng.uniform(900, 9200))}. Save queuing time by using our "
                                 f"free ATMs 24 x 7.")
@@ -108,7 +115,7 @@ def _transfer(rng: random.Random, local: datetime, kind: str, src: str, to_name:
 
 
 TABBY = "notifications@tabby.ai"
-_TABBY_STORES = [("Noon", 380, 1400), ("Namshi", 260, 900), ("IKEA", 600, 2400), ("Sharaf DG", 900, 3600)]
+_TABBY_STORES = [("Noon", 320, 600), ("Namshi", 280, 560), ("IKEA", 400, 640)]
 
 
 def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, n: int = 4) -> list[tuple]:
@@ -143,45 +150,46 @@ def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, 
     return out
 
 
-def _month_events(rng: random.Random, year: int, month: int, scale: float, travel: bool) -> list[tuple]:
+def _month_events(rng: random.Random, year: int, month: int, travel: bool) -> list[tuple]:
     days = calendar.monthrange(year, month)[1]
     out: list[tuple] = []
 
-    for merchant, lo, hi, (cmin, cmax), hours, currency in _CARD_MERCHANTS:
-        count = round(rng.randint(cmin, cmax) * scale)
-        for _ in range(count):
-            amount = round(rng.uniform(lo, hi) * (0.85 + 0.3 * scale) if lo != hi else lo, 2)
-            out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, days), hours), merchant, amount, currency))
+    # Draw purchases, then scale each category so the month lands near its target (±8%).
+    drawn: dict[str, list] = {}
+    for merchant, size, (cmin, cmax), hours, group in _CARD_MERCHANTS:
+        for _ in range(rng.randint(cmin, cmax)):
+            drawn.setdefault(group, []).append([merchant, size * rng.uniform(0.7, 1.3), hours])
+    for group, items in drawn.items():
+        k = TARGETS[group] * rng.uniform(0.92, 1.08) / sum(i[1] for i in items)
+        for merchant, weight, hours in items:
+            out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, days), hours), merchant,
+                             round(weight * k, 2), "AED"))
 
     for merchant, amount, day, hour, currency in _RECURRING:
         if amount is None:
-            amount = round(rng.uniform(1100, 1250), 2)
+            amount = round(rng.uniform(340, 420), 2)
         out.append(_card(rng, _stamp(rng, year, month, day, (hour, hour)), merchant, amount, currency))
 
-    if rng.random() < 0.55:
-        out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, days), (12, 20)),
-                         rng.choice(["ZARA DUBAI AE", "H&M DUBAI AE", "IKEA DUBAI AE", "NAMSHI DUBAI AE"]),
-                         round(rng.uniform(180, 520), 2), "AED"))
     if travel:
         out.append(_card(rng, _stamp(rng, year, month, rng.randint(2, 20), (10, 22)),
                          "EMIRATES DUBAI AE", round(rng.uniform(900, 1400), 2), "AED"))
 
-    if rng.random() < 0.6:
+    if True:  # one small pay-in-4 order a month, so the Pay later card always has something to show
         store, lo, hi = rng.choice(_TABBY_STORES)
         out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, min(days, 26)), (11, 21)), store,
                             round(rng.uniform(lo, hi), 2))
 
     out.append(_advice(_stamp(rng, year, month, 1, (7, 8)), MAIN,
                        f"AED {_fmt(SALARY)} has been credited to your account {{acct}} for Salary."))
-    for _ in range(rng.randint(0, 2)):
+    for _ in range(rng.randint(0, 1)):
         out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, days), (10, 22))))
     out += _transfer(rng, _stamp(rng, year, month, 2, (9, 12)), "local", MAIN, LANDLORD, RENT)
     out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, 6), (18, 21)), "own", MAIN, "Alex Demo",
                      SAVING_TRANSFER)
-    for _ in range(rng.randint(2, 4)):
+    for _ in range(rng.randint(0, 2)):
         src = rng.choice([MAIN, SAVINGS])
         out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, days), (10, 23)), "local", src,
-                         rng.choice(FRIENDS), float(rng.choice([40, 50, 70, 90, 120, 150, 200, 250, 300])))
+                         rng.choice(FRIENDS), float(rng.choice([50, 70, 90, 120, 150, 200])))
     return out
 
 
@@ -195,7 +203,7 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
     for i in range(months):
         index = local_now.year * 12 + local_now.month - 1 - (months - 1 - i)
         year, month = divmod(index, 12)
-        events += _month_events(rng, year, month + 1, rng.uniform(0.6, 0.95), i == travel_month)
+        events += _month_events(rng, year, month + 1, i == travel_month)
     events = sorted((e for e in events if e[0] <= local_now), key=lambda e: e[0])
     return [RawMessage(id=f"demo-{n}", date=_iso(local), sender=sender, subject=subject, body=body)
             for n, (local, sender, subject, body) in enumerate(events, 1)]
