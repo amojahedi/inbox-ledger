@@ -631,3 +631,10 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
 .left-side div small { color: var(--text-3); font-size: 12px; margin-left: 6px; }
 .b-left { color: var(--text-3); font-size: 12px; margin-left: 6px; font-weight: 500; }
 @media (max-width: 640px) { .left-card { grid-template-columns: 1fr; gap: 16px; } .left-big { font-size: 32px; } }
+
+
+/* ---------- Accuracy: refunds, settled transfers, hidden rows ---------- */
+.tx-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--fill); color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; vertical-align: 1px; white-space: nowrap; }
+.tx-badge.refund { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.tx.settled .tx-name, .tx.settled .tx-amt { color: var(--text-2); }
+.tx.gone .tx-name, .tx.gone .tx-amt { text-decoration: line-through; color: var(--text-3); }

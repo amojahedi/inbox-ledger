@@ -7,6 +7,7 @@ with the event of the same amount closest in time, and re-label the charge.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,7 @@ from .merchants import display_name, merchant_key
 from .parsing import RawMessage, Transaction
 
 PAYMENT_KINDS = ("purchase", "payment", "final", "consolidated")
+REFUND_CREDIT_DAYS = 30  # how long after the provider's email the bank may credit the card
 
 
 @dataclass
@@ -180,7 +182,62 @@ def attach(txns: list[Transaction], events: list[Event], providers: list[Provide
             _relabel(piece, store)
             pieces.append(piece)
         txns[i:i + 1] = pieces
+    _attach_refunds(txns, events, by_provider, tz_for_bank, pairs)
     return pairs
+
+
+def _attach_refunds(txns: list[Transaction], events: list[Event], providers: dict[str, Provider],
+                    tz_for_bank: dict[str, ZoneInfo], pairs: dict[str, str]) -> None:
+    """Make every refund the provider emailed show up once as money back on the card.
+
+    A bank credit of the same amount near the email is the refund itself: it takes the store's name.
+    When the bank sent no credit alert, the refund is recorded from the email alone.
+    """
+    taken: set[str] = set()
+    added: list[Transaction] = []
+    for e in sorted((e for e in events if e.kind == "refund" and e.refunded and e.provider in providers),
+                    key=lambda e: e.at):
+        p = providers[e.provider]
+        best = None
+        for t in txns:
+            if (t.direction != "in" or t.kind != "card_purchase" or t.id in taken
+                    or not t.merchant_key.startswith(p.card_merchant) or abs(t.amount - e.refunded) > 0.005):
+                continue
+            tz = tz_for_bank.get(t.bank, ZoneInfo("UTC"))
+            gap = (datetime.fromisoformat(t.occurred_at).replace(tzinfo=tz) - e.at).total_seconds() / 86400
+            if -3 <= gap <= REFUND_CREDIT_DAYS and (best is None or abs(gap) < best[0]):
+                best = (abs(gap), t)
+        if best:
+            t = best[1]
+            taken.add(t.id)
+            pairs[e.message_id] = t.id
+            t.extra.update({"via": p.name, "bnpl": "refund", **({"order": e.order} if e.order else {})})
+            if e.store:
+                _relabel(t, e.store)
+            else:
+                t.merchant, t.merchant_key = p.name, p.card_merchant
+            continue
+        src = next((t for t in txns if t.extra.get("via") == p.name and t.direction == "out" and t.extra.get("order")
+                    and (same_order(t.extra["order"], e.order)
+                         or (not e.order and e.store and t.merchant_key == merchant_key(e.store, location=False)))),
+                   None)
+        if not src:  # nothing of this order was paid by card that we know of
+            continue
+        when = e.at.astimezone(tz_for_bank.get(src.bank, ZoneInfo("UTC"))).replace(tzinfo=None)
+        if any(a.extra["order"] == src.extra["order"] and abs(a.amount - e.refunded) < 0.005
+               and abs(datetime.fromisoformat(a.occurred_at) - when) < timedelta(days=3) for a in added):
+            continue  # Tabby also emails a second notice about the same refund
+        t = Transaction(
+            id=hashlib.sha1(f"{p.name}:refund:{e.message_id}".encode()).hexdigest()[:16], message_id=e.message_id,
+            bank=src.bank, kind="card_purchase", direction="in", occurred_at=when.isoformat(timespec="minutes"),
+            amount=e.refunded, currency=src.currency, account=src.account, merchant_raw=src.merchant_raw,
+            merchant_key=src.merchant_key, merchant=src.merchant, pattern=f"{p.name.lower()}_refund",
+            extra={"via": p.name, "bnpl": "refund", "order": src.extra["order"]})
+        if e.store:
+            _relabel(t, e.store)
+        added.append(t)
+        pairs[e.message_id] = t.id
+    txns.extend(added)
 
 
 def _relabel(t: Transaction, store: str) -> None:

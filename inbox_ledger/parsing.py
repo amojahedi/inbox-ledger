@@ -179,6 +179,9 @@ def parse_message(msg: RawMessage, banks: Iterable[BankProfile]) -> Optional[Tra
             counterparty = _clean(g.get("counterparty"))
             raw = _clean(g.get("merchant")) or counterparty or transfer_type or p.label or p.name
             key = merchant_key(raw)
+            extra = {"transfer_type": transfer_type} if transfer_type else {}
+            if p.kind == "card_purchase" and direction == "in" and not _clean(g.get("merchant")):
+                extra["merchant_unknown"] = True  # a refund that names no shop: matched by amount instead
             return Transaction(
                 id=hashlib.sha1(f"{bank.name}:{msg.id}".encode()).hexdigest()[:16],
                 message_id=msg.id,
@@ -195,7 +198,7 @@ def parse_message(msg: RawMessage, banks: Iterable[BankProfile]) -> Optional[Tra
                 counterparty=counterparty,
                 status=status,
                 pattern=p.name,
-                extra={"transfer_type": transfer_type} if transfer_type else {},
+                extra=extra,
             )
     return None
 

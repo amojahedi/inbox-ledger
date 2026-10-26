@@ -309,6 +309,9 @@
     </div>
     <dl class="sheet-meta" id="sheet-meta"></dl>
 
+    <p class="label"><label for="sheet-name">Name</label></p>
+    <input type="text" id="sheet-name" maxlength="80" autocomplete="off">
+
     <p class="label" id="type-label">Type</p>
     <div class="segmented full" id="sheet-direction" role="radiogroup" aria-labelledby="type-label">
       <button role="radio" data-dir="out">Spending</button>
@@ -327,7 +330,7 @@
 
     <label class="toggle-row">
       <span><strong>Remember for <span id="sheet-merchant"></span></strong><br>
-        <small class="muted">Apply to every past and future transaction from this merchant.</small></span>
+        <small class="muted">Apply the category, type and name to every past and future transaction from this merchant.</small></span>
       <input type="checkbox" id="sheet-remember" checked><span class="switch" aria-hidden="true"></span>
     </label>
     <label class="toggle-row sub" id="sheet-amount-row">
@@ -338,6 +341,12 @@
 
     <p class="label"><label for="sheet-note">Note</label></p>
     <input type="text" id="sheet-note" placeholder="Add a note">
+
+    <label class="toggle-row">
+      <span><strong>Didn’t happen</strong><br>
+        <small class="muted">Leave this out of every total, like a charge that was reversed or an alert you don’t recognise.</small></span>
+      <input type="checkbox" id="sheet-hidden"><span class="switch" aria-hidden="true"></span>
+    </label>
 
     <div class="sheet-actions">
       <button class="btn secondary" id="sheet-cancel">Cancel</button>
