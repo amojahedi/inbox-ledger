@@ -150,8 +150,11 @@ def _tabby_order(rng: random.Random, local: datetime, store: str, total: float, 
     return out
 
 
-def _month_events(rng: random.Random, year: int, month: int, travel: bool) -> list[tuple]:
+def _month_events(rng: random.Random, year: int, month: int, travel: bool, upto: Optional[int] = None) -> list[tuple]:
+    """One month of email. `upto` squeezes day-to-day spending into the days so far (the current month),
+    so the month to date already reads like a typical month instead of stopping short."""
     days = calendar.monthrange(year, month)[1]
+    span = min(days, upto or days)
     out: list[tuple] = []
 
     # Draw purchases, then scale each category so the month lands near its target (±8%).
@@ -162,7 +165,7 @@ def _month_events(rng: random.Random, year: int, month: int, travel: bool) -> li
     for group, items in drawn.items():
         k = TARGETS[group] * rng.uniform(0.92, 1.08) / sum(i[1] for i in items)
         for merchant, weight, hours in items:
-            out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, days), hours), merchant,
+            out.append(_card(rng, _stamp(rng, year, month, rng.randint(1, span), hours), merchant,
                              round(weight * k, 2), "AED"))
 
     for merchant, amount, day, hour, currency in _RECURRING:
@@ -176,19 +179,19 @@ def _month_events(rng: random.Random, year: int, month: int, travel: bool) -> li
 
     if True:  # one small pay-in-4 order a month, so the Pay later card always has something to show
         store, lo, hi = rng.choice(_TABBY_STORES)
-        out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, min(days, 26)), (11, 21)), store,
+        out += _tabby_order(rng, _stamp(rng, year, month, rng.randint(3, max(3, min(span, 26))), (11, 21)), store,
                             round(rng.uniform(lo, hi), 2))
 
     out.append(_advice(_stamp(rng, year, month, 1, (7, 8)), MAIN,
                        f"AED {_fmt(SALARY)} has been credited to your account {{acct}} for Salary."))
     for _ in range(rng.randint(0, 1)):
-        out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, days), (10, 22))))
+        out.append(_atm(rng, _stamp(rng, year, month, rng.randint(2, max(2, span)), (10, 22))))
     out += _transfer(rng, _stamp(rng, year, month, 2, (9, 12)), "local", MAIN, LANDLORD, RENT)
     out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, 6), (18, 21)), "own", MAIN, "Alex Demo",
                      SAVING_TRANSFER)
     for _ in range(rng.randint(0, 2)):
         src = rng.choice([MAIN, SAVINGS])
-        out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, days), (10, 23)), "local", src,
+        out += _transfer(rng, _stamp(rng, year, month, rng.randint(3, max(3, span)), (10, 23)), "local", src,
                          rng.choice(FRIENDS), float(rng.choice([50, 70, 90, 120, 150, 200])))
     return out
 
@@ -203,7 +206,8 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
     for i in range(months):
         index = local_now.year * 12 + local_now.month - 1 - (months - 1 - i)
         year, month = divmod(index, 12)
-        events += _month_events(rng, year, month + 1, i == travel_month)
+        current = i == months - 1
+        events += _month_events(rng, year, month + 1, i == travel_month, local_now.day - 1 if current else None)
     events = sorted((e for e in events if e[0] <= local_now), key=lambda e: e[0])
     return [RawMessage(id=f"demo-{n}", date=_iso(local), sender=sender, subject=subject, body=body)
             for n, (local, sender, subject, body) in enumerate(events, 1)]

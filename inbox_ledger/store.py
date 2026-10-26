@@ -376,7 +376,7 @@ class Store:
         """Month-by-month money in and out, spending per category, and spending by weekday."""
         have = [m["month"] for m in self.months() if m["month"] <= upto][-months:]
         v = self._VISIBLE
-        out = {"months": have, "spent": [], "received": [], "categories": {}, "weekday": [0.0] * 7}
+        out = {"months": have, "spent": [], "received": [], "moved": [], "categories": {}, "weekday": [0.0] * 7}
         for i, m in enumerate(have):
             row = self.db.execute(
                 f"SELECT coalesce(sum(CASE WHEN direction='out' THEN amount_base END),0),"
@@ -384,6 +384,9 @@ class Store:
                 (m,)).fetchone()
             out["spent"].append(round(row[0], 2))
             out["received"].append(round(row[1], 2))
+            out["moved"].append(round(self.db.execute(
+                f"SELECT coalesce(sum(amount_base),0) FROM transactions WHERE month=? AND direction='internal' AND {v}",
+                (m,)).fetchone()[0], 2))
             for r in self.db.execute(f"SELECT category, sum(amount_base) FROM transactions WHERE month=? AND"
                                      f" direction='out' AND {v} GROUP BY category", (m,)):
                 out["categories"].setdefault(r[0], [0.0] * len(have))[i] = round(r[1], 2)

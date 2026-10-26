@@ -248,15 +248,17 @@ function renderTrends() {
   const full = (i) => monthName(t.months[i]);
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const avgOut = sum(t.spent) / t.months.length, avgIn = sum(t.received) / t.months.length;
-  const saved = sum(t.received) - sum(t.spent);
+  const moved = t.moved || t.months.map(() => 0);
+  const saved = sum(moved), left = sum(t.received) - sum(t.spent) - saved;
   $("#flow-stats").innerHTML = [
     ["Average spent", money(avgOut)],
     ["Average came in", avgIn ? money(avgIn) : "—"],
-    [saved >= 0 ? "Saved in total" : "Overspent", `${money(Math.abs(saved))}${sum(t.received) ? ` <small class="muted">${Math.round((saved / sum(t.received)) * 100)}%</small>` : ""}`],
+    ["Saved in total", `${money(saved)}${sum(t.received) ? ` <small class="muted">${Math.round((saved / sum(t.received)) * 100)}% of income</small>` : ""}`],
   ].map(([p, v]) => `<div><p>${p}</p><strong>${v}</strong></div>`).join("");
   lineChart($("#flow-chart"), labels,
     sum(t.received) ? [{ name: "Came in", values: t.received, cls: "income", dots: true }] : [],
-    { bars: { name: "Spent", values: t.spent }, tipTitle: (i) => `${full(i)} · ${t.received[i] >= t.spent[i] ? `saved ${money(t.received[i] - t.spent[i])}` : `over by ${money(t.spent[i] - t.received[i])}`}` });
+    { bars: { name: "Spent", values: t.spent }, tipTitle: (i) => { const l = t.received[i] - t.spent[i] - moved[i];
+      return `${full(i)} · saved ${money(moved[i])} · ${l >= 0 ? `${money(l)} left` : `${money(-l)} over`}`; } });
 
   const keys = Object.keys(t.categories).sort((a, b) => sum(t.categories[b]) - sum(t.categories[a]));
   if (!state.trendOn) state.trendOn = new Set(keys.filter((k) => k !== "other").slice(0, 5));
@@ -295,7 +297,10 @@ function renderHero(s) {
   }
   if (s.received > 0) {
     out.push(`<span class="nowrap">${money(s.received)} came in</span>`);
-    if (s.received > s.spent) out.push(`<span class="nowrap delta-down">${money(s.received - s.spent)} saved</span>`);
+    // Saved = what you moved into your own savings; left = came in − spent − saved.
+    if (s.moved > 0) out.push(`<span class="nowrap delta-down">${money(s.moved)} saved</span>`);
+    const left = s.received - s.spent - (s.moved || 0);
+    out.push(`<span class="nowrap ${left < 0 ? "delta-up" : ""}">${left < 0 ? `${money(-left)} over` : `${money(left)} left`}</span>`);
   }
   $("#hero-sub").innerHTML = out.join(" · ") || "&nbsp;";
 }
@@ -420,7 +425,7 @@ function renderLeft(s) {
       <div class="left-meter" role="progressbar" aria-label="Share left" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}">
         <div class="${share < 0.1 ? "none" : share < 0.3 ? "low" : ""}" style="width:${share * 100}%"></div></div>
       <p class="left-sum">${income
-        ? `${money(income)} came in − ${money(s.spent)} spent${aside ? ` − ${money(aside)} put aside` : ""} = <b>${left < 0 ? "−" : ""}${money(Math.abs(left))} left</b>`
+        ? `${money(income)} came in − ${money(s.spent)} spent${aside ? ` − ${money(aside)} saved` : ""} = <b>${left < 0 ? "−" : ""}${money(Math.abs(left))} left</b>`
         : `${money(budgetTotal)} budgeted − ${money(budgetUsed)} used = <b>${money(left)} left</b>`}</p>
     </div>
     <div class="left-side">
@@ -428,7 +433,7 @@ function renderLeft(s) {
       ${budgetTotal ? (budgetUsed > budgetTotal
         ? `<div><p>Budgets</p><strong class="delta-up">Over by ${money(budgetUsed - budgetTotal)}</strong><small>of ${money(budgetTotal)}</small></div>`
         : `<div><p>Budgets left</p><strong>${money(budgetTotal - budgetUsed)}</strong><small>of ${money(budgetTotal)}</small></div>`) : ""}
-      ${income ? `<div><p>Saved this month</p><strong>${money(Math.max(0, income - s.spent))}</strong><small>${aside ? `${money(aside)} put aside + ${money(Math.max(0, left))} unspent` : "not spent yet"}</small></div>` : ""}
+      ${income ? `<div><p>Saved this month</p><strong>${money(aside)}</strong><small>${aside ? "moved to your savings" : "nothing put aside yet"}</small></div>` : ""}
     </div>`;
 }
 
