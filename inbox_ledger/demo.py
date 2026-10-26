@@ -206,10 +206,23 @@ DEMO_BUDGETS = {"dining": 2600, "groceries": 800, "shopping": 600, "taxi": 400, 
 
 
 def seed(store, months: int = 6, seed: int = 7) -> int:
-    """Fill an empty ledger with the demo: synthetic emails plus a few budgets. Returns emails added."""
+    """Fill an empty ledger with the demo: synthetic emails, a few budgets and a short wishlist.
+    Returns emails added."""
+    from datetime import date
+
+    from . import wishlist
     n = store.add_messages(generate(months=months, seed=seed))
     for category, limit in DEMO_BUDGETS.items():
         if category in store.categories.by_key:
             store.set_budget(category, limit)
     store.rebuild()
+    if not wishlist.wishes(store.db) and not wishlist.wishes(store.db, bought=True):
+        today = date.today()
+        y, m = divmod(today.year * 12 + today.month + 1, 12)  # the 1st, two months from now
+        wishlist.add(store.db, {"name": "AirPods Pro", "price": 999, "link": "https://www.apple.com/ae/airpods-pro/",
+                                "note": "For the gym and the metro"})
+        wishlist.add(store.db, {"name": "A weekend in Georgia", "price": 4500, "note": "Flights and three nights in Tbilisi"})
+        wishlist.add(store.db, {"name": "MacBook Air", "price": 5299, "link": "https://www.apple.com/ae/macbook-air/",
+                                "note": "Before my birthday", "target": date(y, m + 1, 1).isoformat()})
+        wishlist.save_settings(store.db, {"saved": 1200})
     return n

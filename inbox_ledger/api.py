@@ -416,6 +416,86 @@ def logo(merchant_key: str):
     })
 
 
+# ---- wishlist -----------------------------------------------------------------
+#
+# Things you want, and when your saving pace says you can have them. Every call returns the
+# whole plan, so the page re-renders from one answer. Nothing here touches transactions.
+
+from . import wishlist  # noqa: E402  (kept with its endpoints)
+
+
+class WishIn(BaseModel):
+    name: str
+    price: float
+    link: Optional[str] = None
+    note: Optional[str] = None
+    target: Optional[str] = None
+
+
+class WishPatch(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    link: Optional[str] = None
+    note: Optional[str] = None
+    target: Optional[str] = None
+
+
+class WishOrder(BaseModel):
+    ids: list[int]
+
+
+class WishBought(BaseModel):
+    bought: bool = True
+
+
+def _wishlist_call(fn, *args):
+    st = S()
+    try:
+        fn(st.db, *args)
+    except KeyError:
+        raise HTTPException(404, "wish not found")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return wishlist.plan(st)
+
+
+@app.get("/api/wishlist")
+def wishlist_plan():
+    return wishlist.plan(S())
+
+
+@app.patch("/api/wishlist")
+def wishlist_settings(body: dict):
+    """{"saved": amount already put aside, "manual_pace": your own monthly figure or null, "use_manual": bool}"""
+    return _wishlist_call(wishlist.save_settings, body)
+
+
+@app.post("/api/wishlist/wishes")
+def wishlist_add(body: WishIn):
+    return _wishlist_call(wishlist.add, body.model_dump(exclude_unset=True))
+
+
+@app.patch("/api/wishlist/wishes/{wish_id}")
+def wishlist_update(wish_id: int, body: WishPatch):
+    return _wishlist_call(wishlist.update, wish_id, body.model_dump(exclude_unset=True))
+
+
+@app.delete("/api/wishlist/wishes/{wish_id}")
+def wishlist_delete(wish_id: int):
+    return _wishlist_call(wishlist.delete, wish_id)
+
+
+@app.put("/api/wishlist/order")
+def wishlist_order(body: WishOrder):
+    return _wishlist_call(wishlist.reorder, body.ids)
+
+
+@app.post("/api/wishlist/wishes/{wish_id}/bought")
+def wishlist_bought(wish_id: int, body: WishBought):
+    """Move a wish to the Bought list (bought=false moves it back). Creates no transaction."""
+    return _wishlist_call(wishlist.set_bought, wish_id, body.bought)
+
+
 # ---- dashboard ----------------------------------------------------------------
 
 @app.get("/")

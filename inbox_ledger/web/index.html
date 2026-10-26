@@ -25,6 +25,7 @@
         <button role="tab" data-view="overview" aria-selected="true" aria-controls="view-overview">Overview</button>
         <button role="tab" data-view="activity" aria-controls="view-activity">Activity</button>
         <button role="tab" data-view="trends" aria-controls="view-trends">Trends</button>
+        <button role="tab" data-view="wishlist" aria-controls="view-wishlist">Wishlist</button>
         <button role="tab" data-view="rules" aria-controls="view-rules">Rules</button>
       </nav>
       <div class="nav-end">
@@ -176,6 +177,9 @@
         <div class="chart" id="weekday-chart" data-label="Average spending by weekday"></div>
       </div>
     </section>
+
+    <!-- Wishlist (filled by wishlist.js) -->
+    <section class="view" id="view-wishlist" role="tabpanel" aria-label="Wishlist" hidden></section>
 
     <!-- Rules -->
     <section class="view" id="view-rules" role="tabpanel" aria-label="Rules" hidden>
@@ -361,5 +365,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>
+  <script src="wishlist.js"></script>
 </body>
 </html>
