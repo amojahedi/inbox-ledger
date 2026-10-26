@@ -219,7 +219,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 0 22px 80px; }
 .callout #callout-text { flex: 1; }
 
 /* ---------- Stat tiles ---------- */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
 .stat { background: var(--surface); border-radius: 18px; padding: 18px 20px; box-shadow: var(--shadow); }
 .stat p { margin: 0; color: var(--text-2); font-size: 13px; font-weight: 500; letter-spacing: -0.005em; }
 .stat strong { display: block; margin-top: 4px; font-size: 26px; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
@@ -631,3 +631,23 @@ a.btn:hover { text-decoration: none; filter: brightness(.97); }
 .left-side div small { color: var(--text-3); font-size: 12px; margin-left: 6px; }
 .b-left { color: var(--text-3); font-size: 12px; margin-left: 6px; font-weight: 500; }
 @media (max-width: 640px) { .left-card { grid-template-columns: 1fr; gap: 16px; } .left-big { font-size: 32px; } }
+
+
+/* ---------- Three to a row ---------- */
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; align-items: start; }
+.grid-3 > .card { margin-bottom: 0; height: 100%; }
+.grid-3 .left-card { display: block; }
+.grid-3 .left-card .left-big { font-size: 34px; }
+.grid-3 .left-card .left-side { grid-template-columns: 1fr 1fr; margin-top: 16px; gap: 12px; }
+.grid-3 .left-card .left-side strong { font-size: 18px; }
+.grid-3 .pl-top { gap: 14px; }
+.grid-3 .pl-top strong { font-size: 22px; }
+.grid-3 .pl-cols { grid-template-columns: 1fr; gap: 14px; }
+.grid-3 .chart { height: 200px; }
+.budgets.cols-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
+.budgets.cols-3 li + li { border-top: 0; }
+.budgets.cols-3 li { border-bottom: 0.5px solid var(--separator); }
+@media (max-width: 1100px) { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .budgets.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .grid-3, .budgets.cols-3 { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
+.budgets.cols-3 .b-left, .budgets.cols-3 .b-status { display: block; margin-left: 0; }
+.budgets.cols-3 .b-row { align-items: flex-start; }

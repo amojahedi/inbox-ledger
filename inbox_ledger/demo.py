@@ -209,8 +209,8 @@ def generate(months: int = 6, seed: int = 7, now: Optional[datetime] = None) -> 
             for n, (local, sender, subject, body) in enumerate(events, 1)]
 
 
-DEMO_BUDGETS = {"dining": 2600, "groceries": 800, "shopping": 600, "taxi": 400, "transport": 300,
-                "subscriptions": 200, "housing": 8000, "coffee": 2200, "bills": 2100}
+DEMO_BUDGETS = {"housing": 8000, "dining": 1400, "bills": 1300, "coffee": 1000, "groceries": 750, "shopping": 800,
+                "health": 700, "taxi": 300, "transport": 200, "subscriptions": 200}
 
 
 def seed(store, months: int = 6, seed: int = 7) -> int:

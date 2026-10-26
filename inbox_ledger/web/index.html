@@ -81,12 +81,16 @@
           <button class="link" id="callout-btn">Review</button>
         </div>
 
-        <div class="card left-card" id="left-card" hidden></div>
+        <div class="grid-3">
+          <div class="card left-card" id="left-card" hidden></div>
+          <div class="card" id="paylater" hidden></div>
+          <div class="card">
+            <div class="card-head"><h2>Top merchants</h2></div>
+            <ol class="merchants" id="merchants"></ol>
+          </div>
+        </div>
         <div class="stats" id="stats"></div>
-
-        <div class="card" id="paylater" hidden></div>
-
-        <div class="grid-2">
+        <div class="grid-3">
           <div class="card">
             <div class="card-head"><h2>Daily spending</h2><span class="muted" id="daily-note"></span></div>
             <div class="chart" id="daily-chart" data-label="Spending per day this month"></div>
@@ -95,22 +99,14 @@
             <div class="card-head"><h2>Last six months</h2></div>
             <div class="chart" id="trend-chart" data-label="Spending per month"></div>
           </div>
-        </div>
-
-        <div class="grid-2">
           <div class="card">
-            <div class="card-head"><h2>Budgets</h2><span class="muted">Select a limit to change it</span></div>
-            <ul class="budgets" id="budgets"></ul>
-          </div>
-          <div class="card">
-            <div class="card-head"><h2>Top merchants</h2></div>
-            <ol class="merchants" id="merchants"></ol>
+            <div class="card-head"><h2>When you spend</h2><span class="muted">By hour</span></div>
+            <div class="chart" id="hour-chart" data-label="Spending by hour of day"></div>
           </div>
         </div>
-
         <div class="card">
-          <div class="card-head"><h2>When you spend</h2><span class="muted">By hour of day</span></div>
-          <div class="chart short" id="hour-chart" data-label="Spending by hour of day"></div>
+          <div class="card-head"><h2>Budgets</h2><span class="muted">Select a limit to change it</span></div>
+          <ul class="budgets cols-3" id="budgets"></ul>
         </div>
       </div>
     </section>

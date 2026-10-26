@@ -332,13 +332,21 @@ function renderStats(s) {
   const projecting = isCurrent && elapsed < days;
   const perDay = s.spent / elapsed;
   const biggest = s.by_day.reduce((a, b) => (b.total > (a?.total || 0) ? b : a), null);
+  // Fixed costs land once a month; only day-to-day spending carries on at the current pace.
+  const FIXED = ["housing", "bills", "subscriptions"];
+  const fixed = s.by_category.filter((c) => FIXED.includes(c.category)).reduce((a, c) => a + c.total, 0);
+  const pace = s.spent + ((s.spent - fixed) / elapsed) * (days - elapsed);
+  const topCat = s.by_category[0];
+  const regular = [...s.top_merchants].sort((a, b) => b.count - a.count)[0];
   const tiles = [
     ["Daily average", money(perDay), `Over ${elapsed} days`],
     projecting
-      ? ["On pace for", money(perDay * days), "By the end of the month"]
+      ? ["On pace for", money(pace), "Fixed costs counted once"]
       : ["Biggest day", biggest ? money(biggest.total) : "—", biggest ? shortDate(biggest.day + "T00:00") : ""],
     ["Transactions", nf0.format(s.count), s.top_merchants.length ? `Most at ${esc(s.top_merchants[0].merchant)}` : ""],
     ["Biggest purchase", s.biggest ? money(s.biggest.amount_base) : "—", s.biggest ? esc(s.biggest.merchant) : ""],
+    ["Top category", topCat ? esc(catName(topCat.category)) : "—", topCat ? `${money(topCat.total)} · ${Math.round((topCat.total / (s.spent || 1)) * 100)}% of spending` : ""],
+    ["Most visited", regular ? esc(regular.merchant) : "—", regular ? `${plural(regular.count, "time")} · ${money(regular.total)}` : ""],
   ];
   $("#stats").innerHTML = tiles.map(([p, v, sm]) => `<div class="stat"><p>${p}</p><strong>${v}</strong><small>${sm}</small></div>`).join("");
 
@@ -381,7 +389,7 @@ function renderDaily(s) {
     return { label: String(i + 1), value: v, tip: `<b>${money(v)}</b>${dayName(day)}` };
   });
   const active = data.filter((d) => d.value > 0).length;
-  $("#daily-note").textContent = `${plural(active, "day")} with spending`;
+  $("#daily-note").textContent = `${plural(active, "active day")}`;
   barChart($("#daily-chart"), data, { avg: s.spent / days, labelEvery: days > 20 ? 5 : 1 });
 }
 
