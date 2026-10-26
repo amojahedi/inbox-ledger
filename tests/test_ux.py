@@ -309,3 +309,26 @@ def test_logo_fetcher_refuses_private_and_plain_http_hosts():
     for url in ("http://example.com/favicon.ico", "https://127.0.0.1/x", "https://localhost/x", "https://[::1]/x"):
         with pytest.raises(ValueError):
             _check_public(url)
+
+
+# ---- dashboard front-end (served files) -------------------------------------------
+
+WEB = Path(__file__).resolve().parents[1] / "inbox_ledger" / "web"
+
+
+def test_definitions_script_is_served_before_the_sections(app):
+    api, client, d = app
+    html = client.get("/").text
+    scripts = re.findall(r'<script src="([^"]+)"', html)
+    assert scripts.index("shared.js") < scripts.index("defs.js") < scripts.index("overview.js")
+    js = client.get("/defs.js").text
+    for key in ("spent", "came_in", "saved", "left", "fixed", "everyday", "settled", "hidden", "needs_review"):
+        assert re.search(rf"^\s*{key}: \{{ title:", js, re.M), key
+    assert "function defHelp(" in js and '"/api/definitions"' in js
+
+
+def test_activity_chips_use_the_owners_words():
+    js = (WEB / "activity.js").read_text()
+    for name in ("Needs review", "Between my accounts", "Settled (cancelled out)", "Hidden (didn’t happen)", "Sent to people"):
+        assert name in js, name
+    assert "Show hidden" not in js and "Transfers to people" not in js

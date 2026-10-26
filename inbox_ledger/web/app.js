@@ -159,6 +159,7 @@ function wire() {
 
 async function init() {
   wire();
+  loadDefs();
   state.meta = await api("/api/meta");
   applyPrefs();
   const [view, month] = location.hash.slice(1).split("/");

@@ -218,6 +218,25 @@ main { max-width: 1080px; margin: 0 auto; padding: 0 22px 80px; }
 .callout-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
 .callout #callout-text { flex: 1; }
 
+/* ---------- Definitions ("?" help) ---------- */
+.def-help {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 6px; padding: 0; border: 0;
+  border-radius: 50%; background: var(--fill); color: var(--text-2); font-size: 12px; font-weight: 600; line-height: 1;
+  vertical-align: 2px; transition: background .15s, color .15s;
+}
+.def-help:hover, .def-help[aria-expanded="true"] { background: var(--fill-strong); color: var(--text); }
+.def-pop {
+  position: fixed; z-index: 55; width: min(320px, calc(100vw - 24px)); padding: 14px 16px 15px; border-radius: 14px;
+  background: var(--surface); color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 0 0 0.5px var(--separator);
+  font-size: 14px; line-height: 1.45; letter-spacing: -0.005em; animation: fade .18s ease;
+}
+.def-pop:focus { outline: none; }
+.def-pop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.def-pop h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.def-pop p { margin: 0; color: var(--text-2); }
+.def-pop-close { border: 0; background: var(--fill); color: var(--text-2); width: 24px; height: 24px; border-radius: 50%; font-size: 16px; line-height: 1; padding: 0 0 2px; display: grid; place-items: center; }
+.def-pop-close:hover { background: var(--fill-strong); color: var(--text); }
+
 /* ---------- Stat tiles ---------- */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
 .stat { background: var(--surface); border-radius: 18px; padding: 18px 20px; box-shadow: var(--shadow); }

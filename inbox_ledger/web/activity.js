@@ -5,9 +5,9 @@
 function renderChips() {
   const chips = [{ key: null, name: "All" }, { key: "other", name: "Needs review", color: "gray" },
     ...(state.meta.pay_later || []).map((p) => ({ key: `${VIA}${p}`, name: `Paid with ${p}`, color: "gray" })),
-    ...state.meta.categories.filter((c) => c.key !== "other").map((c) => ({ ...c, name: catName(c.key) })),
+    ...state.meta.categories.filter((c) => c.key !== "other").map((c) => ({ ...c, name: c.key === "people" ? "Sent to people" : catName(c.key) })),
     { key: INTERNAL, name: "Between my accounts", color: "gray" },
-    { key: SETTLED, name: "Settled", color: "gray" }, { key: HIDDEN, name: "Show hidden", color: "gray" }];
+    { key: SETTLED, name: "Settled (cancelled out)", color: "gray" }, { key: HIDDEN, name: "Hidden (didn’t happen)", color: "gray" }];
   $("#chips").innerHTML = chips.map((c) =>
     `<button class="chip ${state.cat === c.key ? "on" : ""}" aria-pressed="${state.cat === c.key}" data-cat="${c.key ?? ""}">${c.key ? `<span class="dot" style="background:var(--c-${c.color})"></span>` : ""}${esc(c.name)}</button>`).join("");
   $$(".chip").forEach((b) => b.addEventListener("click", () => { state.cat = b.dataset.cat || null; loadActivity(); }));
