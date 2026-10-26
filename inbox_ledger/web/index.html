@@ -49,6 +49,7 @@
         <p class="eyebrow" id="hero-eyebrow">Spent this month</p>
         <h1 class="hero-number" id="hero-number">—</h1>
         <p class="hero-sub" id="hero-sub"></p>
+        <p class="hero-split" id="hero-split"></p>
         <div class="source-row">
           <p class="source" id="source"></p>
           <button class="link small" id="leave-demo" hidden>Leave demo</button>
@@ -83,6 +84,14 @@
           <button class="link" id="callout-btn">Review</button>
         </div>
 
+        <!-- One row of three: the month in plain words (two tiles tall) beside four everyday tiles. -->
+        <div class="stats" id="stats">
+          <div class="card insight-card" id="insights">
+            <div class="card-head"><h2>In plain words</h2><span class="muted" id="insight-note"></span></div>
+            <ul class="insight-list" id="insight-list" aria-label="What stands out this month"></ul>
+          </div>
+          <div class="stat-tiles" id="stat-tiles"></div>
+        </div>
         <div class="grid-3">
           <div class="card left-card" id="left-card" hidden></div>
           <div class="card coming-up" id="coming-up" hidden></div>
@@ -91,19 +100,18 @@
             <ol class="merchants" id="merchants"></ol>
           </div>
         </div>
-        <div class="stats" id="stats"></div>
         <div class="grid-3">
           <div class="card">
-            <div class="card-head"><h2>Daily spending</h2><span class="muted" id="daily-note"></span></div>
-            <div class="chart" id="daily-chart" data-label="Spending per day this month"></div>
+            <div class="card-head"><h2>Daily spending</h2><span class="head-side"><span class="muted" id="daily-note"></span><button class="link small incl" data-fixed aria-pressed="false">Include fixed</button></span></div>
+            <div class="chart" id="daily-chart" data-label="Everyday spending per day this month"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>Last six months</h2></div>
+            <div class="card-head"><h2>Last six months</h2><span class="muted" id="trend-note"></span></div>
             <div class="chart" id="trend-chart" data-label="Spending per month"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>When you spend</h2><span class="muted">By hour</span></div>
-            <div class="chart" id="hour-chart" data-label="Spending by hour of day"></div>
+            <div class="card-head"><h2>When you spend</h2><span class="head-side"><span class="muted">By hour</span><button class="link small incl" data-fixed aria-pressed="false">Include fixed</button></span></div>
+            <div class="chart" id="hour-chart" data-label="Everyday spending by hour of day"></div>
           </div>
         </div>
         <div class="card">
@@ -159,19 +167,19 @@
       <div class="card">
         <div class="card-head"><h2>Money in and out</h2>
           <span class="legend-inline"><span class="key bar-key"></span>Spent<span class="key line-key"></span>Came in</span></div>
-        <div class="tiles-inline" id="flow-stats"></div>
+        <div class="tiles-inline four" id="flow-stats"></div>
         <div class="chart tall" id="flow-chart" data-label="Spending and income by month"></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Categories over time</h2><span class="muted">Tap a category to show or hide it</span></div>
+        <div class="card-head"><h2>Categories over time</h2><span class="muted">Everyday categories to start · tap one to show or hide it</span></div>
         <div class="chips trend-chips" id="trend-chips"></div>
         <div class="chart tall" id="cat-chart" data-label="Spending per category by month"></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>By day of the week</h2><span class="muted">Average per day</span></div>
-        <div class="chart" id="weekday-chart" data-label="Average spending by weekday"></div>
+        <div class="card-head"><h2>By day of the week</h2><span class="muted" id="weekday-note">Everyday spending · average per day</span></div>
+        <div class="chart" id="weekday-chart" data-label="Average everyday spending by weekday"></div>
       </div>
     </section>
 

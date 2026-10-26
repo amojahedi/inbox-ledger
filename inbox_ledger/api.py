@@ -649,6 +649,23 @@ def reset_plan(month: str):
     return {"ok": True}
 
 
+# ---- insights: the month in plain words --------------------------------------------
+#
+# Kept apart from the summary routes above. Everything it returns is computed in insights.py
+# from the store's own queries (the fixed / everyday split, the ranked lines, a closed month
+# in review), so it reads the same with or without the newer summary fields.
+
+from . import insights as _insights  # noqa: E402
+
+
+@app.get("/api/insights")
+def insights_route(month: str, months: int = 12):
+    out = _insights.build(S(), _plan_month(month), demo=example_data(), today=today_date(), months=months)
+    if out.get("most_visited"):
+        out["most_visited"]["brand"] = _brand(out["most_visited"]["merchant"])
+    return out
+
+
 # ---- dashboard ----------------------------------------------------------------
 
 @app.get("/")
