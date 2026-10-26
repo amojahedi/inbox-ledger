@@ -5,9 +5,9 @@
 function renderChips() {
   const chips = [{ key: null, name: "All" }, { key: "other", name: "Needs review", color: "gray" },
     ...(state.meta.pay_later || []).map((p) => ({ key: `${VIA}${p}`, name: `Paid with ${p}`, color: "gray" })),
-    ...state.meta.categories.filter((c) => c.key !== "other").map((c) => ({ ...c, name: catName(c.key) })),
+    ...state.meta.categories.filter((c) => c.key !== "other").map((c) => ({ ...c, name: c.key === "people" ? "Sent to people" : catName(c.key) })),
     { key: INTERNAL, name: "Between my accounts", color: "gray" },
-    { key: SETTLED, name: "Settled", color: "gray" }, { key: HIDDEN, name: "Show hidden", color: "gray" }];
+    { key: SETTLED, name: "Settled (cancelled out)", color: "gray" }, { key: HIDDEN, name: "Hidden (didn’t happen)", color: "gray" }];
   $("#chips").innerHTML = chips.map((c) =>
     `<button class="chip ${state.cat === c.key ? "on" : ""}" aria-pressed="${state.cat === c.key}" data-cat="${c.key ?? ""}">${c.key ? `<span class="dot" style="background:var(--c-${c.color})"></span>` : ""}${esc(c.name)}</button>`).join("");
   $$(".chip").forEach((b) => b.addEventListener("click", () => { state.cat = b.dataset.cat || null; loadActivity(); }));
@@ -38,21 +38,24 @@ function renderActivity() {
   let html = "";
   for (const [day, list] of groups) {
     const net = list.reduce((a, t) => a + (t.spend || 0), 0);  // what the day cost, refunds taken off
-    html += `<li class="tx-day"><span>${dayName(day)}</span><span>${net ? `${net < 0 ? "−" : ""}${money(Math.abs(net))}` : ""}</span></li>`;
+    const moved = list.reduce((a, t) => a + (t.direction === "internal" && !t.hidden && !t.extra?.settled ? t.amount_base : 0), 0);
+    const parts = [net ? `${net < 0 ? "−" : ""}${money(Math.abs(net))}` : "", moved ? `${money(moved)} saved` : ""].filter(Boolean);
+    html += `<li class="tx-day"><span>${dayName(day)}</span><span${moved ? ` title="Day total leaves out moves between your accounts"` : ""}>${parts.join(" · ")}</span></li>`;
     for (const t of list) {
-      const refund = t.extra?.refund, settled = !!t.extra?.settled, gone = !!t.hidden;
-      const sign = t.direction === "in" ? "+" : t.direction === "internal" ? "" : "−";
+      const refund = t.extra?.refund, settled = !!t.extra?.settled, gone = !!t.hidden, move = t.direction === "internal";
+      const sign = t.direction === "in" ? "+" : move ? "" : "−";
       const fx = t.currency !== state.meta.currency ? `<small>${esc(t.currency)} ${nf2.format(t.amount)}</small>` : "";
       const tag = t.category_source === "learned" ? ` · <span class="learned">Learned</span>` : t.category_source === "manual" ? ` · <span class="learned">Edited</span>` : "";
       const status = gone ? "Didn’t happen" : settled ? "Settled" : refund ? "Refund" : t.extra?.refunded_by ? "Refunded" : t.extra?.payback ? "Paid back" : "";
-      const sub = (t.direction === "internal" ? "Between your accounts" : catName(t.category)) + (t.extra?.via ? ` · via ${t.extra.via}` : "");
-      const fallback = t.direction === "internal" ? "var(--c-gray)" : color(t.category);
+      const sub = (move ? "Between my accounts" : catName(t.category)) + (t.extra?.via ? ` · via ${t.extra.via}` : "");
+      const fallback = move ? "var(--c-gray)" : color(t.category);
       const verb = sign === "−" ? "spent" : refund ? "refunded" : sign === "+" ? "received" : "moved";
-      const label = `${t.merchant}, ${verb} ${money(t.amount_base, true)}, ${status ? `${status}, ` : ""}${sub}, ${timeOf(t.occurred_at)}`;
-      html += `<li class="tx ${gone ? "gone" : settled ? "settled" : ""}" data-id="${t.id}" tabindex="0" role="button" aria-label="${esc(label)}">
+      const label = `${t.merchant}, ${verb} ${money(t.amount_base, true)}, ${status ? `${status}, ` : ""}${sub}, ${timeOf(t.occurred_at)}. Open to edit`;
+      html += `<li class="tx ${gone ? "gone" : settled ? "settled" : move ? "move" : ""}" data-id="${t.id}" tabindex="0" role="button" aria-label="${esc(label)}">
         ${avatar(t.merchant, t.brand, fallback)}
         <span class="tx-main"><span class="tx-name">${esc(t.merchant)}${status ? ` <span class="tx-badge ${refund || t.extra?.refunded_by ? "refund" : ""}">${status}</span>` : ""}</span><span class="tx-sub">${esc(sub)} · ${timeOf(t.occurred_at)}${tag}${t.note ? ` · ${esc(t.note)}` : ""}</span></span>
         <span class="tx-amt ${t.direction}">${sign}${nf2.format(t.amount_base)}${fx}</span>
+        <span class="tx-chev" aria-hidden="true">${icon("chevron")}</span>
       </li>`;
     }
   }
@@ -65,6 +68,49 @@ function renderActivity() {
     li.addEventListener("click", open);
     li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
   });
+  renderReviewBar();
+}
+
+// ---------- needs-review flow: one transaction at a time ----------
+// state.review = { i, auto }: the row being reviewed, and whether to open its sheet on the next render.
+function startReview() {
+  state.cat = "other"; state.q = ""; $("#search").value = "";
+  state.review = { i: 0, auto: true };
+  go("activity");
+}
+
+function renderReviewBar() {
+  const bar = $("#review-bar");
+  const on = state.cat === "other" && !state.q && state.txs.length > 0;
+  if (!on) {
+    if (state.review?.saved && state.cat === "other" && !state.q) toast("All caught up. Ledger will remember these merchants.");
+    state.review = null; bar.hidden = true;
+    return;
+  }
+  if (!state.review) state.review = { i: 0, auto: false };
+  const r = state.review, n = state.txs.length;
+  r.saved = false;
+  r.i = Math.max(0, Math.min(r.i, n - 1));
+  bar.hidden = false;
+  bar.innerHTML = `
+    <span class="review-text"><strong>${r.i + 1} of ${n}</strong> to review${defHelp("needs_review")}</span>
+    <span class="review-nav">
+      <button class="icon-btn" id="review-prev" aria-label="Previous transaction" ${r.i === 0 ? "disabled" : ""}>‹</button>
+      <button class="icon-btn" id="review-next" aria-label="Next transaction" ${r.i >= n - 1 ? "disabled" : ""}>›</button>
+      <button class="btn primary small" id="review-open">Review</button>
+    </span>`;
+  const rows = $$("#tx-list .tx");
+  rows.forEach((li, i) => li.classList.toggle("current", i === r.i));
+  const step = (d) => { r.i += d; r.auto = true; renderReviewBar(); };
+  $("#review-prev").addEventListener("click", () => step(-1));
+  $("#review-next").addEventListener("click", () => step(1));
+  $("#review-open").addEventListener("click", () => { r.auto = true; renderReviewBar(); });
+  if (r.auto) {
+    r.auto = false;
+    const li = rows[r.i];
+    li?.scrollIntoView({ block: "center" });
+    if (li) openSheet(state.txs[r.i], li);
+  }
 }
 
 // ---------- sheet ----------
@@ -94,6 +140,7 @@ function openSheet(t, from) {
   $("#new-cat").hidden = true;
   syncSheet();
   $("#scrim").hidden = $("#sheet").hidden = false;
+  setBackgroundInert(true);
   ($(`#sheet-cats [data-cat="${t.category}"]`) || $("#sheet-cats button"))?.focus({ preventScroll: true });
 }
 
@@ -138,6 +185,7 @@ function syncSheet() {
 function closeSheet() {
   const from = state.editing?.from;
   $("#scrim").hidden = $("#sheet").hidden = true; state.editing = null;
+  setBackgroundInert(false);
   if (from?.isConnected) from.focus({ preventScroll: true });
 }
 
@@ -162,6 +210,7 @@ async function saveSheet() {
     : remember && (body.category || body.direction) ? `Got it. ${t.merchant}${at} will always be ${what}.`
     : remember && body.name ? `Renamed everywhere to ${body.name}` : "Saved");
   state.meta = await api("/api/meta");
+  if (state.review) { state.review.auto = true; state.review.saved = true; }
   await Promise.all([loadMonth(), state.view === "activity" ? loadActivity() : null]);
 }
 
@@ -185,7 +234,13 @@ function renderCustomCats() {
 async function loadRules() {
   renderCustomCats();
   const rules = await api("/api/rules");
-  $("#rule-empty").hidden = rules.length > 0;
+  const empty = $("#rule-empty");
+  empty.hidden = rules.length > 0;
+  const waiting = state.summary?.uncategorized || 0;
+  empty.innerHTML = waiting
+    ? `<strong>Nothing learned yet</strong><span>${plural(waiting, "transaction")} in ${esc(monthName(state.month).split(" ")[0])} ${waiting === 1 ? "is" : "are"} waiting for a category. Pick one and Ledger remembers the merchant.</span><button class="btn primary" id="rule-review">Review now</button>`
+    : `<strong>No rules yet</strong><span>Open any transaction in Activity and pick a category. Ledger remembers it for that merchant.</span>`;
+  $("#rule-review")?.addEventListener("click", startReview);
   const dirName = { out: "Spending", in: "Income", internal: "Between my accounts" };
   $("#rule-list").innerHTML = rules.map((r) => `
     <li class="rule">

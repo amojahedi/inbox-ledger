@@ -309,3 +309,127 @@ def test_logo_fetcher_refuses_private_and_plain_http_hosts():
     for url in ("http://example.com/favicon.ico", "https://127.0.0.1/x", "https://localhost/x", "https://[::1]/x"):
         with pytest.raises(ValueError):
             _check_public(url)
+
+
+# ---- dashboard front-end (served files) -------------------------------------------
+
+WEB = Path(__file__).resolve().parents[1] / "inbox_ledger" / "web"
+
+
+def test_definitions_script_is_served_before_the_sections(app):
+    api, client, d = app
+    html = client.get("/").text
+    scripts = re.findall(r'<script src="([^"]+)"', html)
+    assert scripts.index("shared.js") < scripts.index("defs.js") < scripts.index("overview.js")
+    js = client.get("/defs.js").text
+    for key in ("spent", "came_in", "saved", "left", "fixed", "everyday", "settled", "hidden", "needs_review"):
+        assert re.search(rf"^\s*{key}: \{{ title:", js, re.M), key
+    assert "function defHelp(" in js and '"/api/definitions"' in js
+
+
+def test_activity_chips_use_the_owners_words():
+    js = (WEB / "activity.js").read_text()
+    for name in ("Needs review", "Between my accounts", "Settled (cancelled out)", "Hidden (didn’t happen)", "Sent to people"):
+        assert name in js, name
+    assert "Show hidden" not in js and "Transfers to people" not in js
+
+
+def test_needs_review_flow_is_wired(app):
+    api, client, d = app
+    html, activity, app_js = client.get("/").text, (WEB / "activity.js").read_text(), (WEB / "app.js").read_text()
+    assert 'id="review-bar"' in html
+    assert "function startReview(" in activity and "function renderReviewBar(" in activity
+    assert "All caught up. Ledger will remember these merchants." in activity
+    assert "Review now" in activity  # the Rules empty state offers the same entry
+    assert 'addEventListener("click", startReview)' in app_js  # the Overview callout starts it
+    assert "state.review.auto = true" in activity  # Save advances to the next one
+
+
+def test_all_list_includes_moves_between_accounts():
+    activity, app_js = (WEB / "activity.js").read_text(), (WEB / "app.js").read_text()
+    assert 'if (!state.cat) p.set("internal", "show")' in app_js
+    assert "Day total leaves out moves between your accounts" in activity
+    assert "} saved`" in activity and 'class="tx-chev"' in activity
+
+
+def test_deep_links_and_history():
+    app_js = (WEB / "app.js").read_text()
+    assert "pushState" in app_js and "replaceState" in app_js
+    assert 'addEventListener("hashchange", restoreHash)' in app_js
+    for key in ("needs-review", "between-accounts", "settled", "hidden", "paid-with:", "q="):
+        assert key in app_js, key
+    assert "function parseHash(" in app_js and "state.detailCat = h.detailCat" in app_js
+
+
+def test_settings_tell_the_truth_about_banks_and_the_demo():
+    js = (WEB / "settings.js").read_text()
+    assert "Not chosen yet · Ledger tries every bank profile" in js and '"Choose"' in js
+    assert "s.banks_available" not in js  # never show every profile as if it were chosen
+    assert "Start your own ledger" in js
+    for f in WEB.glob("*"):
+        if f.suffix in (".js", ".html", ".css"):
+            text = f.read_text()
+            assert "INBOX_LEDGER_DATA" not in text and "inbox_ledger demo" not in text, f.name
+
+
+def test_every_button_has_a_name(app):
+    """Every button in the served HTML has text or an aria-label."""
+    from html.parser import HTMLParser
+
+    class Buttons(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.open = None; self.bad = []; self.count = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "button":
+                self.count += 1
+                self.open = {"attrs": dict(attrs), "text": ""}
+
+        def handle_data(self, data):
+            if self.open is not None:
+                self.open["text"] += data
+
+        def handle_endtag(self, tag):
+            if tag == "button" and self.open is not None:
+                if not (self.open["text"].strip() or self.open["attrs"].get("aria-label")):
+                    self.bad.append(self.open["attrs"])
+                self.open = None
+
+    api, client, d = app
+    p = Buttons(); p.feed(client.get("/").text)
+    assert p.count > 20 and p.bad == []
+
+
+def test_onboarding_is_accessible(app):
+    api, client, d = app
+    html, settings_js, app_js, activity = (client.get("/").text, (WEB / "settings.js").read_text(),
+                                           (WEB / "app.js").read_text(), (WEB / "activity.js").read_text())
+    assert 'id="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title" aria-describedby="ob-lead"' in html
+    options = re.findall(r'<button class="row option[^>]*>', settings_js)
+    assert len(options) == 3 and all('aria-label="' in o for o in options)
+    for label in ("Connect Gmail, read-only", "Import a file", "Try the demo"):
+        assert f'aria-label="{label}"' in settings_js, label
+    assert settings_js.count('class="ob-lead" id="ob-lead"') == 4
+    assert "function setBackgroundInert(" in settings_js and "setBackgroundInert(true)" in activity
+    assert 'trapFocus($("#sheet")); trapFocus($("#onboarding"));' in app_js
+
+
+def test_phone_layout_rules():
+    css = (WEB / "styles.css").read_text()
+    phone = css[css.index("@media (max-width: 640px)"):]
+    assert ".nav .segmented button { flex: 1; min-width: 0; padding: 6px 0;" in phone
+    assert ".sheet-actions { position: sticky; bottom: 0;" in phone
+    assert "max-height: none" in phone  # the phone sheet is full height
+    assert ".chips-wrap.more::after { opacity: 1; }" in css
+
+
+def test_defs_js_mirrors_the_definitions_api(app):
+    """The built-in fallback in defs.js says the same as GET /api/definitions, key for key."""
+    api, client, d = app
+    served = client.get("/api/definitions").json()
+    js = (WEB / "defs.js").read_text()
+    block = js[js.index("const DEFS = {"):js.index("};", js.index("const DEFS = {"))]
+    built_in = dict(re.findall(r'^\s*(\w+): \{ title: "[^"]*", text: "([^"]*)" \},$', block, re.M))
+    assert set(built_in) == set(served) == {"spent", "came_in", "saved", "left", "fixed", "everyday", "settled", "hidden", "needs_review"}
+    assert built_in == {k: v["text"] for k, v in served.items()}
+    assert 'fetch("/api/definitions")' in js and "loadDefs();" in (WEB / "app.js").read_text()
